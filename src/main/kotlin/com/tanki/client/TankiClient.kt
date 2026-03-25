@@ -18,7 +18,7 @@ fun main() {
         title       = "Tanki Client - Kotlin"
         width       = 1024
         height      = 768
-        resizable   = false
+        resizable   = true  // ALLOW RESIZING!
         vSyncEnabled = true
         foregroundFPS = 60
         backgroundFPS = 60

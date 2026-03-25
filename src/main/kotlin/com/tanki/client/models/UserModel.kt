@@ -18,7 +18,22 @@ data class Tank(
     val weaponId: String,
     val hullId: String,
     val paintId: String,
-    val modifications: List<String> = emptyList()
+    val modifications: List<String> = emptyList(),
+    val rating: Int = 1000,
+    val battles: Int = 0,
+    val wins: Int = 0
+)
+
+// Tank specifications
+data class TankSpec(
+    val id: String,
+    val name: String,
+    val description: String,
+    val speed: Float,
+    val armor: Int,
+    val damage: Int,
+    val rank: Int,
+    val price: Int
 )
 
 class UserModel {
@@ -27,6 +42,16 @@ class UserModel {
     
     private var currentUser: User? = null
     private var currentTank: Tank? = null
+    
+    // Tank specifications database
+    private val tankSpecs = mapOf(
+        "hunter" to TankSpec("hunter", "Hunter", "Light and fast tank", 12f, 100, 45, 1, 1000),
+        "viking" to TankSpec("viking", "Viking", "Balanced medium tank", 8f, 150, 60, 5, 3000),
+        "dictator" to TankSpec("dictator", "Dictator", "Heavy tank with strong armor", 5f, 200, 80, 10, 8000),
+        "mammoth" to TankSpec("mammoth", "Mammoth", "Super heavy tank", 3f, 250, 100, 15, 15000),
+        "railgun" to TankSpec("railgun", "Rail Gun", "Long range weapon", 10f, 80, 120, 8, 5000),
+        "freeze" to TankSpec("freeze", "Freeze", "Freezing weapon", 9f, 90, 50, 3, 2000)
+    )
     
     fun initialize() {
         logger.info("Initializing User Model...")
@@ -50,25 +75,32 @@ class UserModel {
             logger.info("Attempting login for user: $username")
             
             // TODO: Implement actual authentication with server
-            // For now, create a mock user
+            // For now, create a mock user with random tank
+            val randomTankType = listOf("hunter", "viking", "dictator", "mammoth").random()
+            val tankSpec = tankSpecs[randomTankType] ?: tankSpecs["hunter"]!!
+            
             currentUser = User(
-                id = "12345",
+                id = username,
                 username = username,
-                rank = 15,
-                crystals = 1000,
-                experience = 50000L
+                rank = (1..20).random(), // Random rank for demo
+                crystals = (500..5000).random(), // Random crystals
+                experience = (10000L..100000L).random()
             )
             
-            // Mock tank
+            // Mock tank with random stats
             currentTank = Tank(
-                id = "tank_001",
-                name = "Hunter",
-                weaponId = "smoky",
-                hullId = "hunter",
-                paintId = "green"
+                id = tankSpec.id,
+                name = tankSpec.name,
+                weaponId = listOf("smoky", "firebird", "freeze").random(),
+                hullId = tankSpec.id,
+                paintId = listOf("green", "blue", "red", "camouflage").random(),
+                modifications = listOf("M1", "M2", "M3").shuffled().take((1..3).random()),
+                rating = (800..1500).random(),
+                battles = (50..500).random(),
+                wins = (20..200).random()
             )
             
-            logger.info("Login successful for user: $username")
+            logger.info("Login successful for user: $username with tank: ${currentTank?.name}")
             true
             
         } catch (e: Exception) {
@@ -86,6 +118,10 @@ class UserModel {
     fun getCurrentUser(): User? = currentUser
     
     fun getCurrentTank(): Tank? = currentTank
+    
+    fun getTankSpec(tankId: String): TankSpec? = tankSpecs[tankId]
+    
+    fun getCurrentTankSpec(): TankSpec? = currentTank?.let { tankSpecs[it.hullId] }
     
     fun updateCrystals(amount: Int) {
         currentUser?.let { user ->

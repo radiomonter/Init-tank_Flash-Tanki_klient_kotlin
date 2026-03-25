@@ -25,6 +25,10 @@ class GameEngine : ApplicationAdapter(), KoinComponent {
 
     // Shared projection matrix: pixel-perfect, Y=0 at bottom
     private val projMatrix = Matrix4()
+    
+    // Track window size for resize detection
+    private var lastWidth = 0
+    private var lastHeight = 0
 
     override fun create() {
         logger.info("GameEngine create()")
@@ -36,6 +40,17 @@ class GameEngine : ApplicationAdapter(), KoinComponent {
     }
 
     override fun render() {
+        // Update matrix on resize
+        if (Gdx.graphics.width != lastWidth || Gdx.graphics.height != lastHeight) {
+            updateMatrix()
+            lastWidth = Gdx.graphics.width
+            lastHeight = Gdx.graphics.height
+            logger.info("Window resized to ${Gdx.graphics.width}x${Gdx.graphics.height}")
+        }
+        
+        // Print to console directly
+        println("=== GAME ENGINE RENDER ===")
+        
         Gdx.gl.glClearColor(0f, 0f, 0f, 1f)
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT)
         Gdx.gl.glEnable(GL20.GL_BLEND)
@@ -45,6 +60,11 @@ class GameEngine : ApplicationAdapter(), KoinComponent {
         shapeRenderer.projectionMatrix = projMatrix
 
         networkManager.update()
+        
+        // Add very visible log
+        val currentScreen = uiManager.getCurrentScreen()
+        println("=== GAME ENGINE RENDER - Current screen: $currentScreen ===")
+        
         uiManager.render(batch, shapeRenderer)
     }
 

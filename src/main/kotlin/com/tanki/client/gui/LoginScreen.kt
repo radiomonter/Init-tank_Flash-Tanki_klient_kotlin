@@ -7,8 +7,13 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont
 import com.badlogic.gdx.graphics.g2d.GlyphLayout
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer
+import com.tanki.client.auth.AuthService
+import com.tanki.client.gui.UIManager
+import com.tanki.client.gui.ScreenType
+import com.tanki.client.models.UserModel
 import com.tanki.client.network.NetworkManager
 import com.tanki.client.utils.makeFont
+import com.tanki.client.utils.SimpleTextRenderer
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import org.slf4j.LoggerFactory
@@ -161,21 +166,23 @@ class LoginScreen : UIScreen(), KoinComponent {
 
         // ── Pass 1: filled shapes ─────────────────────────────────────────────
         sr.begin(ShapeRenderer.ShapeType.Filled)
-        sr.color = Color(0.06f, 0.08f, 0.10f, 1f); sr.rect(0f, 0f, panelX, h)
-        sr.color = Color(0.09f, 0.12f, 0.14f, 1f)
-        var gx = 0f; while (gx < panelX) { sr.rect(gx, 0f, 1f, h); gx += 48f }
-        var gy = 0f; while (gy < h)      { sr.rect(0f, gy, panelX, 1f); gy += 48f }
-        val tx = panelX / 2f; val ty = h / 2f
-        sr.color = Color(0.14f, 0.18f, 0.12f, 1f)
-        sr.rect(tx - 60f, ty - 20f, 120f, 40f)
-        sr.rect(tx - 30f, ty + 18f, 60f, 28f)
-        sr.rect(tx - 10f, ty + 42f, 20f, 50f)
-        sr.color = Color(0.10f, 0.13f, 0.09f, 1f)
-        sr.rect(tx - 70f, ty - 30f, 140f, 12f)
-        sr.rect(tx - 70f, ty + 8f,  140f, 12f)
-        sr.color = TankiStyle.ORANGE;               sr.rect(panelX - 3f, 0f, 3f, h)
-        sr.color = Color(0.10f, 0.12f, 0.16f, 1f); sr.rect(panelX, 0f, panelW, h)
-        sr.color = TankiStyle.ORANGE;               sr.rect(panelX, h - 4f, panelW, 4f)
+        sr.color = Color(0.1f, 0.08f, 0.15f, 1f) // Tanki dark background
+        sr.rect(0f, 0f, Gdx.graphics.width.toFloat(), Gdx.graphics.height.toFloat())
+        
+        // Tanki orange header
+        sr.color = Color(0.95f, 0.55f, 0.0f, 1f)
+        sr.rect(0f, Gdx.graphics.height - 80f, Gdx.graphics.width.toFloat(), 4f)
+        sr.color = Color(0.15f, 0.12f, 0.2f, 1f)
+        sr.rect(0f, Gdx.graphics.height - 80f, Gdx.graphics.width.toFloat(), 80f)
+        sr.end()
+        
+        // Draw title using SimpleTextRenderer
+        sr.begin(ShapeRenderer.ShapeType.Filled)
+        SimpleTextRenderer.drawText(sr, "TANKI", Gdx.graphics.width / 2f - 40f, Gdx.graphics.height - 30f, 12f, Color(0.95f, 0.55f, 0.0f, 1f))
+        SimpleTextRenderer.drawText(sr, "CLIENT", Gdx.graphics.width / 2f - 40f, Gdx.graphics.height - 50f, 8f, Color.WHITE)
+        
+        // Draw subtitle
+        SimpleTextRenderer.drawText(sr, "ВХОД", Gdx.graphics.width / 2f - 20f, Gdx.graphics.height - 70f, 6f, Color(0.7f, 0.7f, 0.7f, 1f))
         sr.color = TankiStyle.ORANGE_DARK;          sr.rect(panelX, 0f, panelW, 3f)
         sr.color = TankiStyle.SEPARATOR;            sr.rect(panelX + 20f, h - 82f, panelW - 40f, 1f)
         lf.drawBackground(sr); pf.drawBackground(sr)
@@ -223,10 +230,33 @@ class LoginScreen : UIScreen(), KoinComponent {
         val l = login.trim(); val p = password.trim()
         if (l.isEmpty() || p.isEmpty()) { errorMessage = "Введите логин и пароль"; return }
         isLoggingIn = true; errorMessage = ""
-        networkManager.login(l, p)
+        
+        // Try to login with UserModel
+        val success = userModel.login(l, p)
+        if (success) {
+            logger.info("Login successful, going to main menu")
+            uiManager.showScreen(ScreenType.MAIN_MENU)
+        } else {
+            errorMessage = "Неверный логин или пароль"
+            isLoggingIn = false
+        }
     }
 
-    private fun guestLogin() = uiManager.showScreen(ScreenType.MAIN_MENU)
+    private fun guestLogin() {
+        // Create a guest user with random tank
+        logger.info("Attempting guest login...")
+        val success = userModel.login("Guest${(1000..9999).random()}", "guest")
+        logger.info("Guest login result: $success")
+        
+        if (success) {
+            val user = userModel.getCurrentUser()
+            val tank = userModel.getCurrentTank()
+            logger.info("Guest user created - User: ${user?.username}, Tank: ${tank?.name}")
+            uiManager.showScreen(ScreenType.MAIN_MENU)
+        } else {
+            logger.error("Failed to create guest user")
+        }
+    }
 
     override fun dispose() {
         logoFont?.dispose()

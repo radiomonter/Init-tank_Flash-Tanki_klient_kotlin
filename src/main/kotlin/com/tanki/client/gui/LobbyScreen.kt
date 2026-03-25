@@ -3,118 +3,259 @@ package com.tanki.client.gui
 import com.badlogic.gdx.Gdx
 import com.badlogic.gdx.graphics.Color
 import com.badlogic.gdx.graphics.g2d.BitmapFont
-import com.badlogic.gdx.graphics.g2d.GlyphLayout
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer
 import com.tanki.client.network.NetworkManager
-import com.tanki.client.utils.makeFont
+import com.tanki.client.utils.SimpleTextRenderer
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import org.slf4j.LoggerFactory
 
 class LobbyScreen : UIScreen(), KoinComponent {
-
+    
+    private val logger = LoggerFactory.getLogger("LobbyScreen")
     private val uiManager: UIManager by inject()
     private val networkManager: NetworkManager by inject()
-
-    private var font: BitmapFont? = null
-    private var smallFont: BitmapFont? = null
-    private var buttonFont: BitmapFont? = null
+    
+    private lateinit var font: BitmapFont
+    private lateinit var shapeRenderer: ShapeRenderer
     private var backButton: Button? = null
-    private var uiBuilt = false
-
-    private val battles = mutableListOf<NetworkManager.BattleInfo>()
+    
+    // Battle list data
+    private val battles = mutableListOf<BattleInfo>()
     private var scrollOffset = 0f
-
+    private var selectedBattleIndex = -1
+    
+    data class BattleInfo(
+        val id: String,
+        val name: String,
+        val mode: String,
+        val map: String,
+        val users: Int,
+        val maxPeople: Int,
+        val minRank: Int,
+        val maxRank: Int
+    )
+    
     override fun show() {
         super.show()
-        networkManager.onBattleList = { list ->
-            Gdx.app.postRunnable {
-                battles.clear()
-                battles.addAll(list)
+        logger.info("Showing lobby screen")
+        
+        font = BitmapFont()
+        shapeRenderer = ShapeRenderer()
+        
+        // Initialize UI elements
+        initializeUI()
+        
+        // Load battle list
+        loadBattleList()
+    }
+    
+    private fun initializeUI() {
+        val backButtonWidth = 100f
+        val backButtonHeight = 40f
+        val backButtonX = 20f
+        val backButtonY = Gdx.graphics.height - 60f
+        
+        backButton = Button(
+            x = backButtonX,
+            y = backButtonY,
+            width = backButtonWidth,
+            height = backButtonHeight,
+            text = "НАЗАД",
+            onClick = { 
+                logger.info("Back button clicked")
+                uiManager.showScreen(ScreenType.MAIN_MENU)
             }
-        }
+        )
+        
+        // Initialize mock battles for testing
+        initializeMockBattles()
     }
-
-    private fun ensureUI() {
-        if (uiBuilt) return; uiBuilt = true
-        font       = makeFont(16)
-        smallFont  = makeFont(13)
-        buttonFont = makeFont(17)
-        backButton = Button(20f, 20f, 120f, 46f, "НАЗАД", { uiManager.showScreen(ScreenType.MAIN_MENU) })
+    
+    private fun initializeMockBattles() {
+        battles.clear()
+        battles.addAll(listOf(
+            BattleInfo("1", "DEATHMATCH", "DM", "SAND VALLEY", 8, 10, 1, 5),
+            BattleInfo("2", "TEAM DEATHMATCH", "TDM", "INDUSTRIAL ZONE", 12, 16, 3, 8),
+            BattleInfo("3", "CAPTURE THE FLAG", "CTF", "MOUNTAIN PASS", 6, 8, 5, 10),
+            BattleInfo("4", "PRO BATTLE", "DM", "SPACE STATION", 15, 20, 10, 15),
+            BattleInfo("5", "NOOBS ONLY", "DM", "TRAINING GROUND", 4, 8, 1, 3)
+        ))
     }
-
+    
+    private fun loadBattleList() {
+        // In real implementation, this would load from server
+        logger.info("Loading battle list...")
+        // For now, we use mock data
+    }
+    
     override fun render(batch: SpriteBatch, sr: ShapeRenderer) {
         if (!isScreenVisible()) return
-        ensureUI()
-        val w = Gdx.graphics.width.toFloat()
-        val h = Gdx.graphics.height.toFloat()
-        val f = font!!; val sf = smallFont!!; val bf = buttonFont!!
-
-        // ── Background ────────────────────────────────────────────────────────
+        
+        // Draw background
         sr.begin(ShapeRenderer.ShapeType.Filled)
-        sr.color = Color(0.05f, 0.05f, 0.15f, 1f); sr.rect(0f, 0f, w, h)
-        sr.color = TankiStyle.ORANGE;               sr.rect(0f, h - 4f, w, 4f)
-        backButton?.drawFill(sr)
-
-        // ── Battle rows ───────────────────────────────────────────────────────
-        val rowH = 52f; val listTop = h - 80f; val listX = 20f; val listW = w - 40f
-        battles.forEachIndexed { i, b ->
-            val ry = listTop - i * (rowH + 6f) + scrollOffset
-            if (ry + rowH < 80f || ry > h) return@forEachIndexed
-            sr.color = Color(0.10f, 0.12f, 0.20f, 1f); sr.rect(listX, ry, listW, rowH)
-        }
+        sr.color = Color(0.1f, 0.08f, 0.15f, 1f) // Tanki dark background
+        sr.rect(0f, 0f, Gdx.graphics.width.toFloat(), Gdx.graphics.height.toFloat())
+        
+        // Draw header background with Tanki orange accent
+        sr.color = Color(0.95f, 0.55f, 0.0f, 1f) // Tanki orange
+        sr.rect(0f, Gdx.graphics.height - 80f, Gdx.graphics.width.toFloat(), 4f)
+        sr.color = Color(0.15f, 0.12f, 0.2f, 1f) // Header background
+        sr.rect(0f, Gdx.graphics.height - 80f, Gdx.graphics.width.toFloat(), 80f)
         sr.end()
-
-        sr.begin(ShapeRenderer.ShapeType.Line)
-        backButton?.drawBorder(sr)
-        battles.forEachIndexed { i, _ ->
-            val ry = listTop - i * (rowH + 6f) + scrollOffset
-            if (ry + rowH < 80f || ry > h) return@forEachIndexed
-            sr.color = TankiStyle.SEPARATOR; sr.rect(listX, ry, listW, rowH)
-        }
+        
+        // Draw title
+        sr.begin(ShapeRenderer.ShapeType.Filled)
+        SimpleTextRenderer.drawText(sr, "СПИСОК БОЁВ", Gdx.graphics.width / 2f - 60f, Gdx.graphics.height - 30f, 12f, Color(0.95f, 0.55f, 0.0f, 1f))
         sr.end()
-
-        // ── Text ──────────────────────────────────────────────────────────────
-        batch.begin()
-        f.color = TankiStyle.ORANGE
-        val title = "СПИСОК БОЁВ"
-        val tl = GlyphLayout(f, title)
-        f.draw(batch, title, (w - tl.width) / 2f, h - 20f)
-
-        if (battles.isEmpty()) {
-            sf.color = TankiStyle.TEXT_GRAY
-            val msg = "Загрузка списка боёв..."
-            val ml = GlyphLayout(sf, msg)
-            sf.draw(batch, msg, (w - ml.width) / 2f, h / 2f)
-        } else {
-            battles.forEachIndexed { i, b ->
-                val ry = listTop - i * (rowH + 6f) + scrollOffset
-                if (ry + rowH < 80f || ry > h) return@forEachIndexed
-                f.color = Color.WHITE
-                f.draw(batch, b.name, listX + 10f, ry + rowH - 10f)
-                sf.color = TankiStyle.TEXT_GRAY
-                sf.draw(batch, "${b.mode}  •  ${b.map}  •  ${b.users}/${b.maxPeople}  •  ранг ${b.minRank}-${b.maxRank}",
-                    listX + 10f, ry + 18f)
+        
+        // Draw back button
+        backButton?.let { button ->
+            sr.begin(ShapeRenderer.ShapeType.Filled)
+            button.drawFill(sr)
+            sr.end()
+            
+            sr.begin(ShapeRenderer.ShapeType.Line)
+            button.drawBorder(sr)
+            sr.end()
+            
+            batch.begin()
+            val font = BitmapFont()
+            button.drawText(batch, font)
+            batch.end()
+        }
+        
+        // Draw battle list
+        drawBattleList(batch, sr)
+        
+        // Handle input
+        handleInput()
+    }
+    
+    private fun drawBattleList(batch: SpriteBatch, sr: ShapeRenderer) {
+        val listStartY = Gdx.graphics.height - 120f
+        val battleHeight = 60f
+        val battleSpacing = 10f
+        val listX = 20f
+        val listWidth = Gdx.graphics.width - 40f
+        
+        sr.begin(ShapeRenderer.ShapeType.Filled)
+        
+        battles.forEachIndexed { index, battle ->
+            val battleY = listStartY - index * (battleHeight + battleSpacing) + scrollOffset
+            
+            // Skip if outside visible area
+            if (battleY + battleHeight < 0 || battleY > Gdx.graphics.height - 120f) return@forEachIndexed
+            
+            // Draw battle background
+            if (index == selectedBattleIndex) {
+                sr.color = Color(0.3f, 0.5f, 0.8f, 1f) // Selected - blue
+            } else {
+                sr.color = Color(0.15f, 0.12f, 0.2f, 1f) // Normal - dark
             }
+            sr.rect(listX.toFloat(), battleY, listWidth.toFloat(), battleHeight)
+            
+            // Draw battle border
+            sr.end()
+            sr.begin(ShapeRenderer.ShapeType.Line)
+            sr.color = Color(0.3f, 0.25f, 0.4f, 1f) // Border
+            sr.rect(listX.toFloat(), battleY, listWidth.toFloat(), battleHeight)
+            sr.end()
+            
+            // Draw battle text
+            sr.begin(ShapeRenderer.ShapeType.Filled)
+            
+            // Battle name
+            SimpleTextRenderer.drawText(sr, battle.name, listX + 10f, battleY + battleHeight - 15f, 8f, Color.WHITE)
+            
+            // Battle details
+            val details = "${battle.mode} • ${battle.map} • ${battle.users}/${battle.maxPeople} • РАНГ ${battle.minRank}-${battle.maxRank}"
+            SimpleTextRenderer.drawText(sr, details, listX + 10f, battleY + battleHeight - 35f, 6f, Color(0.7f, 0.7f, 0.7f, 1f))
+            
+            // Join button with Tanki style
+            val joinButtonX = listX + listWidth - 80f
+            val joinButtonY = battleY + 10f
+            val joinButtonWidth = 70f
+            val joinButtonHeight = 30f
+            
+            sr.color = Color(0.2f, 0.6f, 0.2f, 1f) // Green join button
+            sr.rect(joinButtonX, joinButtonY, joinButtonWidth, joinButtonHeight)
+            
+            // Draw text without starting new ShapeRenderer batch
+            SimpleTextRenderer.drawText(sr, "ВОЙТИ", joinButtonX + joinButtonWidth/2f, joinButtonY + joinButtonHeight/2f, 6f, Color.WHITE)
         }
-
-        backButton?.drawText(batch, bf)
-        batch.end()
-
-        // ── Input ─────────────────────────────────────────────────────────────
+        
+        sr.end()
+    }
+    
+    private fun handleInput() {
         if (Gdx.input.justTouched()) {
-            val x = Gdx.input.x.toFloat(); val y = h - Gdx.input.y.toFloat()
-            backButton?.checkClick(x, y)
-
-            // Click on battle row → go to battle
-            battles.forEachIndexed { i, _ ->
-                val ry = listTop - i * (rowH + 6f) + scrollOffset
-                if (x in listX..(listX + listW) && y in ry..(ry + rowH)) {
-                    uiManager.showScreen(ScreenType.BATTLE)
+            val mouseX = Gdx.input.x.toFloat()
+            val mouseY = Gdx.graphics.height - Gdx.input.y.toFloat()
+            
+            // Check back button
+            backButton?.checkClick(mouseX, mouseY)
+            
+            // Check battle list clicks
+            val listStartY = Gdx.graphics.height - 120f
+            val battleHeight = 60f
+            val battleSpacing = 10f
+            val listX = 20f
+            val listWidth = Gdx.graphics.width - 40f
+            
+            battles.forEachIndexed { index, battle ->
+                val battleY = listStartY - index * (battleHeight + battleSpacing) + scrollOffset
+                
+                // Check if click is within battle row
+                if (mouseX >= listX && mouseX <= listX + listWidth &&
+                    mouseY >= battleY && mouseY <= battleY + battleHeight) {
+                    
+                    // Check if join button was clicked
+                    val joinButtonX = listX + listWidth - 80f
+                    val joinButtonY = battleY + 10f
+                    val joinButtonWidth = 70f
+                    val joinButtonHeight = 30f
+                    
+                    if (mouseX >= joinButtonX && mouseX <= joinButtonX + joinButtonWidth &&
+                        mouseY >= joinButtonY && mouseY <= joinButtonY + joinButtonHeight) {
+                        // Join battle
+                        joinBattle(battle)
+                    } else {
+                        // Select battle
+                        selectedBattleIndex = index
+                        logger.info("Selected battle: ${battle.name}")
+                    }
                 }
             }
         }
+        
+        // Handle scrolling
+        if (Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.UP)) {
+            scrollOffset += 5f
+        }
+        if (Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.DOWN)) {
+            scrollOffset -= 5f
+        }
+        
+        // Limit scrolling
+        val maxScroll = (battles.size - 1) * (60f + 10f)
+        scrollOffset = scrollOffset.coerceIn(-maxScroll, 0f)
     }
-
-    override fun dispose() { font?.dispose(); smallFont?.dispose(); buttonFont?.dispose() }
+    
+    private fun joinBattle(battle: BattleInfo) {
+        logger.info("Joining battle: ${battle.name}")
+        // TODO: Connect to battle server
+        uiManager.showScreen(ScreenType.BATTLE)
+    }
+    
+    override fun dispose() {
+        if (::font.isInitialized) {
+            font.dispose()
+        }
+        if (::shapeRenderer.isInitialized) {
+            shapeRenderer.dispose()
+        }
+        logger.info("Lobby screen disposed")
+    }
 }

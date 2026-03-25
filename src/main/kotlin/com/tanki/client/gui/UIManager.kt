@@ -28,20 +28,31 @@ class UIManager {
     }
 
     fun showScreen(type: ScreenType) {
+        logger.info("Switching screen from $currentScreen to $type")
         currentScreen?.hide()
         currentScreen = when (type) {
             ScreenType.LOGIN      -> loginScreen
             ScreenType.REGISTER   -> registerScreen
-            ScreenType.MAIN_MENU  -> mainMenu
+            ScreenType.MAIN_MENU  -> {
+                logger.info("Setting mainMenu as current screen")
+                mainMenu
+            }
             ScreenType.LOBBY      -> lobbyScreen
             ScreenType.GARAGE     -> garageScreen
             ScreenType.BATTLE     -> battleScreen
         }
         currentScreen?.show()
-        logger.info("Screen → $type")
+        logger.info("Screen → $type, currentScreen is now: $currentScreen")
     }
 
-    fun render(batch: SpriteBatch, sr: ShapeRenderer) = currentScreen?.render(batch, sr)
+    fun render(batch: SpriteBatch, sr: ShapeRenderer) {
+        currentScreen?.let { screen ->
+            logger.info("Rendering screen: $screen")
+            screen.render(batch, sr)
+        } ?: logger.warn("No current screen to render")
+    }
+
+    fun getCurrentScreen(): UIScreen? = currentScreen
 
     fun resize(width: Int, height: Int) = currentScreen?.resize(width, height)
 
