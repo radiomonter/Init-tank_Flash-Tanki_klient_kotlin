@@ -80,55 +80,55 @@ object FontGenerator {
     }
     
     fun makeFont(size: Int): BitmapFont {
-        // Simple approach - use Roboto at actual size, no scaling tricks
+        // Простой подход - используем Roboto в реальном размере, без трюков с масштабированием
         return if (generator != null) {
             try {
                 val parameter = FreeTypeFontGenerator.FreeTypeFontParameter().apply {
-                    this.size = size // ACTUAL SIZE - no scaling!
+                    this.size = size // РЕАЛЬНЫЙ РАЗМЕР - без масштабирования!
                     borderWidth = 0f
                     borderColor = Color.BLACK
                     color = Color.WHITE
                     
-                    // Simple filtering
+                    // Простая фильтрация
                     magFilter = com.badlogic.gdx.graphics.Texture.TextureFilter.Linear
                     minFilter = com.badlogic.gdx.graphics.Texture.TextureFilter.Linear
                     
-                    // Basic settings
+                    // Базовые настройки
                     kerning = true
                     spaceX = 0
-                    hinting = FreeTypeFontGenerator.Hinting.None // No hinting issues
+                    hinting = FreeTypeFontGenerator.Hinting.None // Без проблем с хинтингом
                     
-                    // All characters
+                    // Все символы
                     characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя!?.,:-+@#$%&*()[]{}<>\\/|\"' "
                 }
                 val font = generator!!.generateFont(parameter)
-                font.setUseIntegerPositions(false) // Let it be smooth
+                font.setUseIntegerPositions(false) // Позволяем быть плавным
                 
-                logger.info("Created SIMPLE Roboto font at actual size $size")
+                logger.info("Создан ПРОСТОЙ шрифт Roboto в реальном размере $size")
                 font
             } catch (e: Exception) {
-                logger.warn("Roboto failed, using BitmapFont fallback", e)
+                logger.warn("Roboto не удалось, используем BitmapFont fallback", e)
                 createSimpleBitmapFont(size)
             }
         } else {
-            logger.info("No generator, using BitmapFont fallback")
+            logger.info("Нет генератора, используем BitmapFont fallback")
             createSimpleBitmapFont(size)
         }
     }
     
     private fun createSimpleBitmapFont(size: Int): BitmapFont {
         return BitmapFont().apply {
-            // Simple scaling - no tricks
-            val scale = size / 12f // Scale relative to default 12px
+            // Простое масштабирование - без трюков
+            val scale = size / 12f // Масштаб относительно стандартного 12px
             data.setScale(scale)
             color = Color.WHITE
-            setUseIntegerPositions(false) // Smooth rendering
+            setUseIntegerPositions(false) // Плавный рендеринг
             
-            // Simple filtering
+            // Простая фильтрация
             region.texture.setFilter(com.badlogic.gdx.graphics.Texture.TextureFilter.Linear, 
                                      com.badlogic.gdx.graphics.Texture.TextureFilter.Linear)
             
-            logger.info("Created SIMPLE BitmapFont with scale $scale for size $size")
+            logger.info("Создан ПРОСТОЙ BitmapFont с масштабом $scale для размера $size")
         }
     }
     

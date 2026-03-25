@@ -40,15 +40,15 @@ class GameEngine : ApplicationAdapter(), KoinComponent {
     }
 
     override fun render() {
-        // Update matrix on resize
+        // Обновляем матрицу при изменении размера
         if (Gdx.graphics.width != lastWidth || Gdx.graphics.height != lastHeight) {
             updateMatrix()
             lastWidth = Gdx.graphics.width
             lastHeight = Gdx.graphics.height
-            logger.info("Window resized to ${Gdx.graphics.width}x${Gdx.graphics.height}")
+            logger.info("Окно изменено до ${Gdx.graphics.width}x${Gdx.graphics.height}")
         }
         
-        // Print to console directly
+        // Выводим в консоль напрямую
         println("=== GAME ENGINE RENDER ===")
         
         Gdx.gl.glClearColor(0f, 0f, 0f, 1f)

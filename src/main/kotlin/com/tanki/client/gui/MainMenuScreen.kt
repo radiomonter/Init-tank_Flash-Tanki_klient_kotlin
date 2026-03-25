@@ -89,27 +89,27 @@ class MainMenuScreen : UIScreen(), KoinComponent {
             sr.rect(0f, h - 3f, w, 3f)
             sr.end()
             
-            // Init-tank logo in center - Simple approach
+            // Логотип Init-tank в центре - простой подход
             batch.begin()
-            val logoFont = makeFont(24) // Bigger size, simple font
+            val logoFont = makeFont(24) // Больше размер, простой шрифт
             
-            // Simple shadow
+            // Простая тень
             logoFont.color = Color(0f, 0f, 0f, 0.5f)
             val logoLayout = com.badlogic.gdx.graphics.g2d.GlyphLayout(logoFont, "Init-tank")
             logoFont.draw(batch, "Init-tank", (w - logoLayout.width) / 2f + 1f, h - 28f - 1f)
             
-            // Main text
+            // Основной текст
             logoFont.color = Color(1f, 0.2f, 0.2f, 1f)
             logoFont.draw(batch, "Init-tank", (w - logoLayout.width) / 2f, h - 28f)
             batch.end()
             
-            // Rank icon (left side, centered vertically)
+            // Иконка ранга (слева, по центру вертикально)
             sr.begin(ShapeRenderer.ShapeType.Filled)
             val rankColor = when (user.rank) {
-                in 1..3 -> Color(0.3f, 0.7f, 0.3f, 1f) // Green
-                in 4..10 -> Color(0.3f, 0.5f, 0.8f, 1f) // Blue  
-                in 11..20 -> Color(0.8f, 0.3f, 0.3f, 1f) // Red
-                else -> Color(0.8f, 0.7f, 0.2f, 1f) // Gold
+                in 1..3 -> Color(0.3f, 0.7f, 0.3f, 1f) // Зеленый
+                in 4..10 -> Color(0.3f, 0.5f, 0.8f, 1f) // Синий  
+                in 11..20 -> Color(0.8f, 0.3f, 0.3f, 1f) // Красный
+                else -> Color(0.8f, 0.7f, 0.2f, 1f) // Золотой
             }
             sr.color = rankColor
             val rankIconSize = 32f
@@ -117,83 +117,83 @@ class MainMenuScreen : UIScreen(), KoinComponent {
             val rankIconY = (h - 45f) + 29f - (rankIconSize / 2f)
             sr.rect(rankIconX, rankIconY, rankIconSize, rankIconSize)
             
-            // Rank icon border
+            // Граница иконки ранга
             sr.color = Color(0.0f, 0.0f, 0.0f, 0.5f)
             sr.rect(rankIconX, rankIconY, rankIconSize, rankIconSize)
             sr.color = Color(1f, 1f, 1f, 0.3f)
             sr.rect(rankIconX + 1f, rankIconY + 1f, rankIconSize - 2f, rankIconSize - 2f)
             sr.end()
             
-            // Player info (left side) - Flash style with shadows
+            // Информация об игроке (слева) - Flash стиль с тенями
             batch.begin()
             val nameFont = makeFont(16)
             val smallFont = makeFont(12)
             
-            // Player name with shadow
-            nameFont.color = Color(0f, 0f, 0f, 0.7f) // Shadow
+            // Имя игрока с тенью
+            nameFont.color = Color(0f, 0f, 0f, 0.7f) // Тень
             nameFont.draw(batch, user.username, 70f + 1f, h - 20f - 1f)
-            nameFont.color = Color(0.2f, 1f, 0.2f, 1f) // BRIGHT GREEN
+            nameFont.color = Color(0.2f, 1f, 0.2f, 1f) // ЯРКО-ЗЕЛЕНЫЙ
             nameFont.draw(batch, user.username, 70f, h - 20f)
             
-            // Progress bar background
+            // Фон прогресс-бара
             sr.begin(ShapeRenderer.ShapeType.Filled)
             sr.color = Color(0.05f, 0.05f, 0.08f, 1f)
             sr.rect(70f, h - 30f, 150f, 6f)
             
-            // Progress bar fill
+            // Заполнение прогресс-бара
             val progress = (user.experience % 1000) / 1000f
-            sr.color = Color(0.05f, 0.85f, 0.85f, 1f) // Flash orange
+            sr.color = Color(0.05f, 0.85f, 0.85f, 1f) // Flash оранжевый
             sr.rect(70f, h - 30f, 150f * progress, 6f)
             sr.end()
             
-            // Rank and crystals text - Flash style with shadows
-            smallFont.color = Color(0f, 0f, 0f, 0.7f) // Shadow
+            // Текст ранга и кристаллов - Flash стиль с тенями
+            smallFont.color = Color(0f, 0f, 0f, 0.7f) // Тень
             smallFont.draw(batch, "Ранг ${user.rank}", 70f + 1f, h - 40f - 1f)
             smallFont.draw(batch, "💎 ${user.crystals}", 150f + 1f, h - 40f - 1f)
             
-            smallFont.color = Color(1f, 1f, 0.2f, 1f) // BRIGHT YELLOW
+            smallFont.color = Color(1f, 1f, 0.2f, 1f) // ЯРКО-ЖЕЛТЫЙ
             smallFont.draw(batch, "Ранг ${user.rank}", 70f, h - 40f)
             
-            smallFont.color = Color(1f, 0.5f, 1f, 1f) // BRIGHT MAGENTA
+            smallFont.color = Color(1f, 0.5f, 1f, 1f) // ЯРКО-МАЛИНОВЫЙ
             smallFont.draw(batch, "💎 ${user.crystals}", 150f, h - 40f)
             
             batch.end()
         }
         
-        // Draw Button Bar (authentic Flash client style - right side, but adaptive)
+        // Отрисовка панели кнопок (аутентичный стиль Flash клиента - справа, адаптивная)
         ensureUI()
         val buttonY = h - 35f
         val buttonHeight = 30f
         val buttonSpacing = 2f
         
-        // Adaptive button positioning - ensure all buttons fit on screen
-        val availableWidth = w - 200f // Leave space for player info on left
-        val buttonCount = 3 // Only show our 3 buttons (Бои, Гараж, ВЫХОД)
+        // Адаптивное позиционирование кнопок - убедиться что все помещаются на экране
+        val availableWidth = w - 200f // Оставить место для информации об игроке слева
+        val buttonCount = 3 // Показываем только наши 3 кнопки (Бои, Гараж, ВЫХОД)
         val maxButtonWidth = 80f
         val totalButtonWidth = buttonCount * maxButtonWidth + (buttonCount - 1) * buttonSpacing
         
-        // Calculate starting position to fit all buttons
+        // Вычисляем начальную позицию чтобы все кнопки поместились
         val buttonBarX = if (totalButtonWidth < availableWidth) {
-            w - totalButtonWidth - 20f // Right aligned if fits
+            w - totalButtonWidth - 20f // Выровнено по правому краю если помещается
         } else {
-            w - 20f - buttonCount * (availableWidth / buttonCount) // Compressed if needed
+            w - 20f - buttonCount * (availableWidth / buttonCount) // Сжато если нужно
         }
         
-        // Update button positions to fit screen
+        // Обновляем позиции кнопок чтобы поместились на экране
         garageButton?.let { 
-            it.x = buttonBarX + maxButtonWidth + buttonSpacing // Second button
+            it.x = buttonBarX + maxButtonWidth + buttonSpacing // Вторая кнопка
             it.y = buttonY
         }
         battleButton?.let { 
-            it.x = buttonBarX // First button
+            it.x = buttonBarX // Первая кнопка
             it.y = buttonY
         }
         exitButton?.let { 
-            it.x = buttonBarX + (maxButtonWidth + buttonSpacing) * 2 // Third button
+            it.x = buttonBarX + (maxButtonWidth + buttonSpacing) * 2 // Третья кнопка
             it.y = buttonY
         }
         
-        // Draw buttons with authentic Flash styling
+        // Отрисовываем кнопки с аутентичным Flash стилем
         sr.begin(ShapeRenderer.ShapeType.Filled)
         garageButton?.drawFill(sr)
         battleButton?.drawFill(sr)
@@ -207,13 +207,13 @@ class MainMenuScreen : UIScreen(), KoinComponent {
         sr.end()
         
         batch.begin()
-        val buttonFont = makeFont(16) // Bigger for better readability
+        val buttonFont = makeFont(16) // Больше для лучшей читаемости
         garageButton?.drawText(batch, buttonFont)
         battleButton?.drawText(batch, buttonFont)
         exitButton?.drawText(batch, buttonFont)
         batch.end()
         
-        // Handle input
+        // Обработка ввода
         if (Gdx.input.justTouched()) {
             val x = Gdx.input.x.toFloat()
             val y = Gdx.graphics.height - Gdx.input.y.toFloat()
