@@ -32,6 +32,11 @@ class TextField(
         sr.rect(x, y, width, height)
     }
 
+    fun drawBorder(sr: ShapeRenderer, isActive: Boolean, activeColor: Color, inactiveColor: Color) {
+        sr.color = if (isActive) activeColor else inactiveColor
+        sr.rect(x, y, width, height)
+    }
+
     fun drawText(batch: SpriteBatch, font: BitmapFont, text: String) {
         if (text.isEmpty()) {
             font.color = TankiStyle.TEXT_GRAY
