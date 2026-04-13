@@ -7,223 +7,224 @@ import com.badlogic.gdx.graphics.g2d.GlyphLayout
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer
 import com.tanki.client.models.UserModel
-import com.tanki.client.utils.FontGenerator
-import com.tanki.client.utils.FontGenerator.makeFont
-import com.tanki.client.utils.FontGenerator.makeLatinFont
+import com.tanki.client.models.NewsModel
+import com.tanki.client.utils.makeFont
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import org.slf4j.LoggerFactory
 
 class MainMenuScreen : UIScreen(), KoinComponent {
-    
-    private val logger = LoggerFactory.getLogger("MainMenuScreen")
-    
-    // Inject dependencies
+
     private val uiManager: UIManager by inject()
     private val userModel: UserModel by inject()
+    private val newsModel: NewsModel by inject()
 
-    private var titleFont:  BitmapFont? = null
-    private var subFont:    BitmapFont? = null
-    private var buttonFont: BitmapFont? = null
+    private var navFont:  BitmapFont? = null
+    private var infoFont: BitmapFont? = null
+    private var newsFont: BitmapFont? = null
+    private var logoTex:  com.badlogic.gdx.graphics.Texture? = null
 
-    private var garageButton: Button? = null
-    private var battleButton: Button? = null
-    private var exitButton:   Button? = null
-
+    private data class NavTab(val label: String, val action: () -> Unit,
+                               var x: Float = 0f, var w: Float = 0f)
+    private var tabs = listOf<NavTab>()
+    private var exitBtn: Button? = null
     private var uiBuilt = false
 
+    private val NAV_H   = 44f
+    private val TAB_PAD = 28f
+
     private fun ensureUI() {
-        if (uiBuilt) return
-        uiBuilt = true
-        
-        logger.info("MainMenuScreen ensureUI - checking user data...")
-        
-        val cx = Gdx.graphics.width / 2f
-        val cy = Gdx.graphics.height / 2f
-        
-        // Create buttons with proper sizes for the main menu
-        val bw = 80f; val bh = 30f; val gap = 5f
-        garageButton = Button(0f, 0f, bw, bh, "ГАРАЖ", { uiManager.showScreen(ScreenType.GARAGE) }, style = ButtonStyle.ACCENT)
-        battleButton = Button(0f, 0f, bw, bh, "В БОЙ", { 
-            logger.info("Battle button clicked - going to lobby")
-            uiManager.showScreen(ScreenType.LOBBY)
-        },  style = ButtonStyle.GREEN)
-        exitButton   = Button(0f, 0f, bw, bh, "ВЫХОД", { Gdx.app.exit() })
+        if (uiBuilt) return; uiBuilt = true
+        navFont   = makeFont(15)
+        infoFont  = makeFont(14)
+        newsFont  = makeFont(14)
+        logoTex   = com.badlogic.gdx.graphics.Texture(
+            com.badlogic.gdx.Gdx.files.internal("init-tank-logo.png")
+        ).also { it.setFilter(
+            com.badlogic.gdx.graphics.Texture.TextureFilter.Linear,
+            com.badlogic.gdx.graphics.Texture.TextureFilter.Linear
+        ) }
+        tabs = listOf(
+            NavTab("ГАРАЖ", { uiManager.showScreen(ScreenType.GARAGE) }),
+            NavTab("В БОЙ", { uiManager.showScreen(ScreenType.LOBBY)  })
+        )
+        val w = Gdx.graphics.width.toFloat()
+        val h = Gdx.graphics.height.toFloat()
+        exitBtn = Button(w - 90f, h - NAV_H + (NAV_H - 30f) / 2f, 80f, 30f, "ВЫХОД", { Gdx.app.exit() })
     }
 
     override fun render(batch: SpriteBatch, sr: ShapeRenderer) {
         if (!isScreenVisible()) return
-        
-        val w = Gdx.graphics.width.toFloat()
-        val h = Gdx.graphics.height.toFloat()
-        
-        // Tanki Online authentic background with gradient
-        sr.begin(ShapeRenderer.ShapeType.Filled)
-        // Dark gradient background
-        sr.color = Color(0.05f, 0.05f, 0.08f, 1f) // Very dark top
-        sr.rect(0f, 0f, w, h)
-        
-        // Gradient effect
-        sr.color = Color(0.08f, 0.08f, 0.12f, 0.7f) // Slightly lighter
-        sr.rect(0f, 0f, w, h * 0.4f)
-        sr.end()
-        
-        // Get user data
-        val user = userModel.getCurrentUser()
-        val tank = userModel.getCurrentTank()
-        val tankSpec = userModel.getCurrentTankSpec()
-        
-        // Draw Main Panel (authentic Flash client style)
-        if (user != null && tank != null && tankSpec != null) {
-            // Main panel background - very thin at top (y=3)
-            sr.begin(ShapeRenderer.ShapeType.Filled)
-            sr.color = Color(0.12f, 0.12f, 0.16f, 0.95f) // Panel background
-            sr.rect(0f, h - 45f, w, 45f)
-            
-            // Top border line
-            sr.color = Color(0.05f, 0.85f, 0.85f, 1f) // Flash orange
-            sr.rect(0f, h - 45f, w, 2f)
-            
-            // Bottom shadow
-            sr.color = Color(0.0f, 0.0f, 0.0f, 0.4f)
-            sr.rect(0f, h - 3f, w, 3f)
-            sr.end()
-            
-            // Логотип Init-tank в центре - простой подход
-            batch.begin()
-            val logoFont = makeFont(24) // Больше размер, простой шрифт
-            
-            // Простая тень
-            logoFont.color = Color(0f, 0f, 0f, 0.5f)
-            val logoLayout = com.badlogic.gdx.graphics.g2d.GlyphLayout(logoFont, "Init-tank")
-            logoFont.draw(batch, "Init-tank", (w - logoLayout.width) / 2f + 1f, h - 28f - 1f)
-            
-            // Основной текст
-            logoFont.color = Color(1f, 0.2f, 0.2f, 1f)
-            logoFont.draw(batch, "Init-tank", (w - logoLayout.width) / 2f, h - 28f)
-            batch.end()
-            
-            // Иконка ранга (слева, по центру вертикально)
-            sr.begin(ShapeRenderer.ShapeType.Filled)
-            val rankColor = when (user.rank) {
-                in 1..3 -> Color(0.3f, 0.7f, 0.3f, 1f) // Зеленый
-                in 4..10 -> Color(0.3f, 0.5f, 0.8f, 1f) // Синий  
-                in 11..20 -> Color(0.8f, 0.3f, 0.3f, 1f) // Красный
-                else -> Color(0.8f, 0.7f, 0.2f, 1f) // Золотой
-            }
-            sr.color = rankColor
-            val rankIconSize = 32f
-            val rankIconX = 38f - (rankIconSize / 2f)
-            val rankIconY = (h - 45f) + 29f - (rankIconSize / 2f)
-            sr.rect(rankIconX, rankIconY, rankIconSize, rankIconSize)
-            
-            // Граница иконки ранга
-            sr.color = Color(0.0f, 0.0f, 0.0f, 0.5f)
-            sr.rect(rankIconX, rankIconY, rankIconSize, rankIconSize)
-            sr.color = Color(1f, 1f, 1f, 0.3f)
-            sr.rect(rankIconX + 1f, rankIconY + 1f, rankIconSize - 2f, rankIconSize - 2f)
-            sr.end()
-            
-            // Информация об игроке (слева) - Flash стиль с тенями
-            batch.begin()
-            val nameFont = makeFont(16)
-            val smallFont = makeFont(12)
-            
-            // Имя игрока с тенью
-            nameFont.color = Color(0f, 0f, 0f, 0.7f) // Тень
-            nameFont.draw(batch, user.username, 70f + 1f, h - 20f - 1f)
-            nameFont.color = Color(0.2f, 1f, 0.2f, 1f) // ЯРКО-ЗЕЛЕНЫЙ
-            nameFont.draw(batch, user.username, 70f, h - 20f)
-            
-            // Фон прогресс-бара
-            sr.begin(ShapeRenderer.ShapeType.Filled)
-            sr.color = Color(0.05f, 0.05f, 0.08f, 1f)
-            sr.rect(70f, h - 30f, 150f, 6f)
-            
-            // Заполнение прогресс-бара
-            val progress = (user.experience % 1000) / 1000f
-            sr.color = Color(0.05f, 0.85f, 0.85f, 1f) // Flash оранжевый
-            sr.rect(70f, h - 30f, 150f * progress, 6f)
-            sr.end()
-            
-            // Текст ранга и кристаллов - Flash стиль с тенями
-            smallFont.color = Color(0f, 0f, 0f, 0.7f) // Тень
-            smallFont.draw(batch, "Ранг ${user.rank}", 70f + 1f, h - 40f - 1f)
-            smallFont.draw(batch, "💎 ${user.crystals}", 150f + 1f, h - 40f - 1f)
-            
-            smallFont.color = Color(1f, 1f, 0.2f, 1f) // ЯРКО-ЖЕЛТЫЙ
-            smallFont.draw(batch, "Ранг ${user.rank}", 70f, h - 40f)
-            
-            smallFont.color = Color(1f, 0.5f, 1f, 1f) // ЯРКО-МАЛИНОВЫЙ
-            smallFont.draw(batch, "💎 ${user.crystals}", 150f, h - 40f)
-            
-            batch.end()
-        }
-        
-        // Отрисовка панели кнопок (аутентичный стиль Flash клиента - справа, адаптивная)
         ensureUI()
-        val buttonY = h - 35f
-        val buttonHeight = 30f
-        val buttonSpacing = 2f
-        
-        // Адаптивное позиционирование кнопок - убедиться что все помещаются на экране
-        val availableWidth = w - 200f // Оставить место для информации об игроке слева
-        val buttonCount = 3 // Показываем только наши 3 кнопки (Бои, Гараж, ВЫХОД)
-        val maxButtonWidth = 80f
-        val totalButtonWidth = buttonCount * maxButtonWidth + (buttonCount - 1) * buttonSpacing
-        
-        // Вычисляем начальную позицию чтобы все кнопки поместились
-        val buttonBarX = if (totalButtonWidth < availableWidth) {
-            w - totalButtonWidth - 20f // Выровнено по правому краю если помещается
-        } else {
-            w - 20f - buttonCount * (availableWidth / buttonCount) // Сжато если нужно
+
+        val w   = Gdx.graphics.width.toFloat()
+        val h   = Gdx.graphics.height.toFloat()
+        val nf  = navFont!!
+        val inf = infoFont!!; val nwf = newsFont!!
+        val navY = h - NAV_H
+        val user = userModel.getCurrentUser()
+        val news = newsModel.getLatest()
+
+        // ── Вычисляем вкладки (справа, перед кнопкой ВЫХОД) ─────────────────
+        val exitBtnW = 90f
+        var tabX = w - exitBtnW - 10f
+        tabs.asReversed().forEach { tab ->
+            val gl = GlyphLayout(nf, tab.label)
+            tab.w = gl.width + TAB_PAD * 2
+            tabX -= tab.w
+            tab.x = tabX
         }
-        
-        // Обновляем позиции кнопок чтобы поместились на экране
-        garageButton?.let { 
-            it.x = buttonBarX + maxButtonWidth + buttonSpacing // Вторая кнопка
-            it.y = buttonY
+
+        // ── Панель игрока (размеры) ───────────────────────────────────────────
+        val panelW   = 260f
+        val panelX   = 10f  // от левого края
+        val py       = navY + 4f
+        val rankSize = NAV_H - 8f
+        val barX     = panelX + rankSize + 8f
+        val barW     = panelW - rankSize - 8f
+        val barH     = 6f
+        val barY     = py + 8f
+        val crystalX = barX + barW - 70f
+        val progress = if (user != null) {
+            val total = user.experience + user.nextScore
+            if (total > 0) (user.experience.toFloat() / total).coerceIn(0f, 1f) else 0f
+        } else 0f
+
+        // ── Новость (размеры) ─────────────────────────────────────────────────
+        val newsLines = mutableListOf<String>()
+        var newsBlockH = 0f
+        val newsBlockY = 50f
+        val nx = 40f; val nw = w - 80f
+        if (news != null) {
+            val maxChars = (nw / 7.5f).toInt()
+            val words = news.text.split(Regex("[ \n]+"))
+            var cur = ""
+            for (word in words) {
+                val test = if (cur.isEmpty()) word else "$cur $word"
+                if (test.length > maxChars) { if (cur.isNotEmpty()) newsLines += cur; cur = word }
+                else cur = test
+            }
+            if (cur.isNotEmpty()) newsLines += cur
+            newsBlockH = 28f + newsLines.size * 18f + 12f
         }
-        battleButton?.let { 
-            it.x = buttonBarX // Первая кнопка
-            it.y = buttonY
-        }
-        exitButton?.let { 
-            it.x = buttonBarX + (maxButtonWidth + buttonSpacing) * 2 // Третья кнопка
-            it.y = buttonY
-        }
-        
-        // Отрисовываем кнопки с аутентичным Flash стилем
+
+        // ══ PASS 1: ShapeRenderer ═════════════════════════════════════════════
         sr.begin(ShapeRenderer.ShapeType.Filled)
-        garageButton?.drawFill(sr)
-        battleButton?.drawFill(sr)
-        exitButton?.drawFill(sr)
+
+        // Фон
+        sr.color = Color(0.05f, 0.07f, 0.10f, 1f); sr.rect(0f, 0f, w, h)
+
+        // Навбар
+        sr.color = Color(0.08f, 0.10f, 0.14f, 1f); sr.rect(0f, navY, w, NAV_H)
+        sr.color = TankiStyle.ORANGE;               sr.rect(0f, navY - 2f, w, 2f)
+        tabs.forEach { tab ->
+            sr.color = Color(0.12f, 0.15f, 0.20f, 1f); sr.rect(tab.x, navY, tab.w, NAV_H)
+            sr.color = Color(0.20f, 0.24f, 0.30f, 1f); sr.rect(tab.x + tab.w - 1f, navY, 1f, NAV_H)
+        }
+        exitBtn?.drawFill(sr)
+
+        // Панель игрока
+        if (user != null) {
+            sr.color = Color(0f, 0f, 0f, 0.3f)
+            sr.rect(panelX + 2f, py + 2f, rankSize - 4f, rankSize - 4f)
+            sr.color = Color(0.15f, 0.18f, 0.22f, 1f); sr.rect(barX, barY, barW, barH)
+            sr.color = TankiStyle.ORANGE;               sr.rect(barX, barY, barW * progress, barH)
+            sr.color = Color(1f, 1f, 1f, 0.15f);       sr.rect(barX, barY + barH / 2f, barW * progress, barH / 2f)
+            // Кристалл (ромб)
+            val cx = crystalX + 5f; val cy = py + barH + 14f + 5f; val cr = 5f
+            sr.color = Color(0.2f, 0.6f, 1.0f, 1f)
+            sr.triangle(cx, cy + cr, cx - cr, cy, cx + cr, cy)
+            sr.triangle(cx, cy - cr, cx - cr, cy, cx + cr, cy)
+        }
+
+        // Новость
+        if (news != null) {
+            sr.color = Color(0.08f, 0.10f, 0.14f, 1f); sr.rect(nx, newsBlockY, nw, newsBlockH)
+            sr.color = TankiStyle.ORANGE;               sr.rect(nx, newsBlockY + newsBlockH - 2f, nw, 2f)
+        }
+
         sr.end()
-        
+
         sr.begin(ShapeRenderer.ShapeType.Line)
-        garageButton?.drawBorder(sr)
-        battleButton?.drawBorder(sr)
-        exitButton?.drawBorder(sr)
+        exitBtn?.drawBorder(sr)
         sr.end()
-        
+
+        // ══ PASS 2: SpriteBatch ═══════════════════════════════════════════════
         batch.begin()
-        val buttonFont = makeFont(16) // Больше для лучшей читаемости
-        garageButton?.drawText(batch, buttonFont)
-        battleButton?.drawText(batch, buttonFont)
-        exitButton?.drawText(batch, buttonFont)
+
+        // Вкладки
+        tabs.forEach { tab ->
+            val gl = GlyphLayout(nf, tab.label)
+            nf.color = Color.WHITE
+            nf.draw(batch, tab.label, tab.x + (tab.w - gl.width) / 2f,
+                navY + NAV_H - (NAV_H - gl.height) / 2f)
+        }
+        exitBtn?.drawText(batch, nf)
+
+        // Логотип в центре экрана — полупрозрачный фон
+        logoTex?.let { tex ->
+            val logoH = 200f
+            val logoW = logoH * (tex.width.toFloat() / tex.height.toFloat())
+            batch.setColor(1f, 1f, 1f, 0.12f)
+            batch.draw(tex, (w - logoW) / 2f, (h - logoH) / 2f, logoW, logoH)
+            batch.setColor(1f, 1f, 1f, 1f)
+        }
+
+        // Панель игрока
+        if (user != null) {
+            // Иконка ранга — изображение
+            val rankTex = com.tanki.client.utils.RankTextures.get(user.rank, user.premium)
+            if (rankTex != null) {
+                batch.draw(rankTex, panelX, py, rankSize, rankSize)
+            } else {
+                // fallback — цветной квадрат с номером
+                inf.color = Color.WHITE
+                val rl = GlyphLayout(inf, "${user.rank}")
+                inf.draw(batch, "${user.rank}", panelX + (rankSize - rl.width) / 2f,
+                    py + (rankSize + rl.height) / 2f)
+            }
+            inf.color = Color.WHITE
+            inf.draw(batch, user.username, barX, py + rankSize - 2f)
+            nwf.color = TankiStyle.TEXT_GRAY
+            nwf.draw(batch, "${user.experience} / ${user.experience + user.nextScore}", barX, barY - 2f)
+            inf.color = Color(0.85f, 0.92f, 1.0f, 1f)
+            inf.draw(batch, "${user.crystals}", crystalX + 14f, py + rankSize - 2f)
+        }
+
+        // Новость
+        if (news != null) {
+            nwf.color = TankiStyle.ORANGE
+            nwf.draw(batch, "${news.header}  —  ${news.date}", nx + 10f, newsBlockY + newsBlockH - 8f)
+            nwf.color = Color(0.80f, 0.80f, 0.80f, 1f)
+            newsLines.forEachIndexed { i, line ->
+                nwf.draw(batch, line, nx + 10f, newsBlockY + newsBlockH - 28f - i * 18f)
+            }
+        }
+
         batch.end()
-        
-        // Обработка ввода
+
+        // ── Клики ─────────────────────────────────────────────────────────────
         if (Gdx.input.justTouched()) {
-            val x = Gdx.input.x.toFloat()
-            val y = Gdx.graphics.height - Gdx.input.y.toFloat()
-            garageButton?.checkClick(x, y)
-            battleButton?.checkClick(x, y)
-            exitButton?.checkClick(x, y)
+            val mx = Gdx.input.x.toFloat()
+            val my = h - Gdx.input.y.toFloat()
+            tabs.forEach { tab ->
+                if (mx in tab.x..(tab.x + tab.w) && my in navY..h) tab.action()
+            }
+            exitBtn?.checkClick(mx, my)
         }
     }
 
+    private fun rankColor(rank: Int): Color = when (rank) {
+        in 1..3   -> Color(0.30f, 0.55f, 0.30f, 1f)
+        in 4..7   -> Color(0.25f, 0.45f, 0.75f, 1f)
+        in 8..12  -> Color(0.65f, 0.45f, 0.10f, 1f)
+        in 13..17 -> Color(0.55f, 0.55f, 0.60f, 1f)
+        in 18..22 -> Color(0.75f, 0.60f, 0.15f, 1f)
+        else      -> Color(0.80f, 0.30f, 0.30f, 1f)
+    }
+
     override fun dispose() {
-        titleFont?.dispose(); subFont?.dispose(); buttonFont?.dispose()
+        // Шрифты управляются FontGenerator
+        logoTex?.dispose()
+        com.tanki.client.utils.RankTextures.dispose()
     }
 }

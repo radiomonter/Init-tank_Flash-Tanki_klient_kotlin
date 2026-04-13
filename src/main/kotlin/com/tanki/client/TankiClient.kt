@@ -15,15 +15,18 @@ fun main() {
     startKoin { modules(gameModule) }
 
     val config = LwjglApplicationConfiguration().apply {
-        title       = "Tanki Client - Kotlin"
-        width       = 1024
-        height      = 768
-        resizable   = true  // РАЗРЕШИТЬ ИЗМЕНЕНИЕ РАЗМЕРА!
-        vSyncEnabled = true
+        title         = "Init-tank Client"
+        width         = 1024
+        height        = 768
+        resizable     = true
+        vSyncEnabled  = true
         foregroundFPS = 60
         backgroundFPS = 60
-        useGL30     = false
-        samples     = 4
+        useGL30       = false
+        samples       = 4
+        addIcon("icon16.png",  com.badlogic.gdx.Files.FileType.Internal)
+        addIcon("icon32.png",  com.badlogic.gdx.Files.FileType.Internal)
+        addIcon("icon128.png", com.badlogic.gdx.Files.FileType.Internal)
     }
 
     LwjglApplication(GameEngine(), config)

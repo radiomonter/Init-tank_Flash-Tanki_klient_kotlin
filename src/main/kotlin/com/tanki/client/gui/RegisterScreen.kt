@@ -161,12 +161,11 @@ class RegisterScreen : UIScreen(), KoinComponent {
             password.length < 6         -> { errorMessage = "Пароль минимум 6 символов"; return }
             password != confirmPassword -> { errorMessage = "Пароли не совпадают"; return }
         }
-        userModel.login(username, password)
-        uiManager.showScreen(ScreenType.MAIN_MENU)
+        // TODO: отправить регистрацию на сервер
+        uiManager.showScreen(ScreenType.LOGIN)
     }
 
     override fun dispose() {
-        logoFont?.dispose(); labelFont?.dispose(); inputFont?.dispose()
-        smallFont?.dispose(); buttonFont?.dispose()
+        // Шрифты управляются FontGenerator
     }
 }

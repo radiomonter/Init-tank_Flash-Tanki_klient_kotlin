@@ -53,5 +53,5 @@ class BattleScreen : UIScreen(), KoinComponent {
         }
     }
 
-    override fun dispose() { font?.dispose(); buttonFont?.dispose() }
+    override fun dispose() { /* Шрифты управляются FontGenerator */ }
 }

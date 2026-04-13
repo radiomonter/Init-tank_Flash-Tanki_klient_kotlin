@@ -3,34 +3,40 @@ package com.tanki.client.network
 import org.slf4j.LoggerFactory
 import java.net.Socket
 import java.net.SocketTimeoutException
+import java.nio.charset.Charset
 import kotlin.concurrent.thread
+import com.tanki.client.models.UserModel
+import com.tanki.client.models.NewsModel
+import com.tanki.client.models.News
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 
 /**
  * TCP client for the FlashTanki server protocol.
  *
  * Encryption: first byte = key (1-8), rest = char.code + (key+1), delimiter = "~dne"
- * Keys rotate: lastKey = (lastKey + 1) % 9, if <= 0 then 1
+ * Server sends plain text, client encrypts outgoing packets.
  *
- * Handshake (client initiates):
- *   client → system;get_aes_data;ru
- *   server → system;set_aes_data;...   (ignored)
- *   server → system;load_resources;<json>;<depId>
+ * Handshake:
+ *   client → system;get_aes_data;RU
+ *   server → system;load_resources;...;<depId>   (repeat until done)
  *   client → system;dependencies_loaded;<depId>
  *   server → system;main_resources_loaded
- *   client → auth;login;{...}
- *   server → auth;accept  OR  auth;denied
+ *   client → auth;login;;false;<user>;<pass>
+ *   server → auth;authaccept
+ *   server → lobby;initpanel;{...}
  */
-class NetworkManager {
+class NetworkManager : KoinComponent {
 
     private val logger = LoggerFactory.getLogger(NetworkManager::class.java)
+    private val userModel: UserModel by inject()
+    private val newsModel: NewsModel by inject()
 
     private var socket: Socket? = null
     private var outputStream: java.io.OutputStream? = null
     private var inputStream: java.io.InputStream? = null
 
-    // Encryption state — mirrors server EncryptionTransformer
     private var lastSendKey = 1
-    private var lastRecvKey = 1
 
     private enum class State { IDLE, CONNECTING, HANDSHAKE, READY, AUTHENTICATED }
     private var state = State.IDLE
@@ -63,21 +69,15 @@ class NetworkManager {
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
-    fun initialize() {
-        logger.info("NetworkManager initialised")
-    }
-
+    fun initialize() { logger.info("NetworkManager initialised") }
     fun update() {}
 
     // ── Public API ────────────────────────────────────────────────────────────
 
     fun login(username: String, password: String) {
         pendingLogin = Pair(username, password)
-        if (!isConnected) {
-            connect()
-        } else if (state == State.READY || state == State.AUTHENTICATED) {
-            flushPendingLogin()
-        }
+        if (!isConnected) connect()
+        else if (state == State.READY || state == State.AUTHENTICATED) flushPendingLogin()
     }
 
     fun connect(host: String = "127.0.0.1", port: Int = 2351) {
@@ -87,21 +87,13 @@ class NetworkManager {
             try {
                 logger.info("Connecting to $host:$port …")
                 val s = Socket(host, port)
-                s.soTimeout = 0
-                s.tcpNoDelay = true
-                socket       = s
-                outputStream = s.getOutputStream()
-                inputStream  = s.getInputStream()
-                lastSendKey  = 1
-                lastRecvKey  = 1
-                state        = State.HANDSHAKE
+                s.soTimeout = 0; s.tcpNoDelay = true
+                socket = s; outputStream = s.getOutputStream(); inputStream = s.getInputStream()
+                lastSendKey = 1
+                state = State.HANDSHAKE
                 logger.info("Connected")
                 onConnected?.invoke()
-
-                // Client initiates — send locale
                 sendPacket("system;get_aes_data;RU")
-                logger.debug("Sent get_aes_data")
-
                 receiveLoop()
             } catch (e: Exception) {
                 logger.error("Connection failed: ${e.message}")
@@ -114,15 +106,14 @@ class NetworkManager {
 
     fun disconnect() {
         try { socket?.close() } catch (_: Exception) {}
-        socket       = null
-        outputStream = null
-        inputStream  = null
-        state        = State.IDLE
+        socket = null; outputStream = null; inputStream = null
+        state = State.IDLE
     }
 
-    fun dispose() {
-        disconnect()
-        logger.info("NetworkManager disposed")
+    fun dispose() { disconnect(); logger.info("NetworkManager disposed") }
+
+    fun sendCommand(category: String, name: String, args: String = "") {
+        sendPacket(if (args.isEmpty()) "$category;$name" else "$category;$name;$args")
     }
 
     // ── Receive loop ──────────────────────────────────────────────────────────
@@ -135,14 +126,7 @@ class NetworkManager {
             while (isConnected) {
                 val n = try { ins.read(raw) } catch (e: SocketTimeoutException) { continue }
                 if (n == -1) break
-
-                // Log raw bytes for debugging
-                val hex = raw.take(n).joinToString(" ") { "%02X".format(it) }
-                val txt = raw.take(n).map { if (it in 32..126) it.toInt().toChar() else '.' }.joinToString("")
-                logger.debug("RAW [$n bytes] hex=$hex  txt=$txt")
-
-                for (i in 0 until n) buf.append(raw[i].toInt().toChar())
-
+                buf.append(String(raw, 0, n, Charsets.UTF_8))
                 var idx: Int
                 while (buf.indexOf("~dne").also { idx = it } != -1) {
                     val packet = buf.substring(0, idx)
@@ -161,19 +145,6 @@ class NetworkManager {
 
     // ── Encryption ────────────────────────────────────────────────────────────
 
-    /** Decrypt: first char is key digit, rest = char.code - (key+1) */
-    private fun decrypt(encrypted: String): String? {
-        if (encrypted.isEmpty()) return null
-        return try {
-            val key = encrypted[0].toString().toInt()
-            encrypted.drop(1).map { c -> Char(c.code - (key + 1)) }.joinToString("")
-        } catch (e: Exception) {
-            logger.warn("Failed to decrypt: $encrypted")
-            null
-        }
-    }
-
-    /** Encrypt: prepend key digit, each char += (key+1) */
     private fun encrypt(plain: String): String {
         var key = (lastSendKey + 1) % 9
         if (key <= 0) key = 1
@@ -184,107 +155,115 @@ class NetworkManager {
     // ── Packet handling ───────────────────────────────────────────────────────
 
     private fun processPacket(packet: String) {
-        logger.info("← PACKET: $packet")
+        logger.debug("← $packet")
 
-        // Support both "category;name;args" and "Category::Name;args" formats
-        val category: String
-        val name: String
-        val args: String
-
+        val category: String; val name: String; val args: String
         if (packet.contains("::")) {
-            // Format: "Category::CommandName;args" or "Category::CommandName"
-            val colonIdx = packet.indexOf("::")
-            val rawCat   = packet.substring(0, colonIdx).lowercase()
-            val rest     = packet.substring(colonIdx + 2)
-            val semiIdx  = rest.indexOf(';')
-            if (semiIdx >= 0) {
-                category = rawCat
-                name     = rest.substring(0, semiIdx).lowercase()
-                args     = rest.substring(semiIdx + 1)
-            } else {
-                category = rawCat
-                name     = rest.lowercase()
-                args     = ""
-            }
+            val ci = packet.indexOf("::")
+            val cat = packet.substring(0, ci).lowercase()
+            val rest = packet.substring(ci + 2)
+            val si = rest.indexOf(';')
+            if (si >= 0) { category = cat; name = rest.substring(0, si).lowercase(); args = rest.substring(si + 1) }
+            else         { category = cat; name = rest.lowercase(); args = "" }
         } else {
-            val parts = packet.split(";", limit = 3)
-            category  = parts.getOrElse(0) { "" }.lowercase()
-            name      = parts.getOrElse(1) { "" }.lowercase()
-            args      = parts.getOrElse(2) { "" }
+            val p = packet.split(";", limit = 3)
+            category = p.getOrElse(0) { "" }.lowercase()
+            name     = p.getOrElse(1) { "" }.lowercase()
+            args     = p.getOrElse(2) { "" }
         }
 
-        logger.debug("  category=$category  name=$name  args=${args.take(120)}")
+        logger.debug("  cat=$category name=$name args=${args.take(80)}")
 
         when {
             name == "load_resources" || name == "loadresources" -> {
-                // args may be: "<json>;<depId>" or just "<depId>" or empty
                 val lastSemi = args.lastIndexOf(';')
                 val depId = when {
-                    args.isEmpty()  -> "1"
-                    lastSemi >= 0   -> args.substring(lastSemi + 1).trim().ifEmpty { "1" }
-                    else            -> args.trim().ifEmpty { "1" }
+                    args.isEmpty() -> "1"
+                    lastSemi >= 0  -> args.substring(lastSemi + 1).trim().ifEmpty { "1" }
+                    else           -> args.trim().ifEmpty { "1" }
                 }
-                logger.info("load_resources depId=$depId → sending dependencies_loaded")
+                logger.info("load_resources depId=$depId")
                 sendPacket("system;dependencies_loaded;$depId")
             }
 
             name == "main_resources_loaded" || name == "mainresourcesloaded" -> {
-                logger.info("Handshake complete — server ready for auth")
+                logger.info("Handshake complete")
                 state = State.READY
                 flushPendingLogin()
             }
 
-            name == "authaccept" && category == "auth" -> {
-                logger.info("Login accepted (authaccept)")
+            (name == "authaccept" || name == "accept") && category == "auth" -> {
+                logger.info("Auth accepted")
                 state = State.AUTHENTICATED
-                val username = pendingUsername ?: "Player"
-                pendingUsername = null
-                onLoginSuccess?.invoke(username)
-            }
-
-            name == "accept" && category == "auth" -> {
-                logger.info("Login accepted (accept)")
-                state = State.AUTHENTICATED
-                val username = pendingUsername ?: "Player"
-                pendingUsername = null
-                onLoginSuccess?.invoke(username)
+                // username will come from initpanel — wait for it
             }
 
             name == "denied" && category == "auth" -> {
-                logger.warn("Login denied: $args")
+                logger.warn("Auth denied")
                 onLoginFailed?.invoke("Неверный логин или пароль")
             }
 
-            name == "init_panel" || name == "initpanel" -> {
-                pendingUsername = extractString(args, "name") ?: "Player"
-                logger.info("Got initpanel, username=${pendingUsername}")
-                // If already authenticated, fire success now (initpanel comes after authaccept)
+            name == "initpanel" || name == "init_panel" -> {
+                val username  = extractString(args, "name") ?: pendingUsername ?: "Player"
+                val rank      = extractInt(args, "rang")
+                val crystals  = extractInt(args, "crystall")
+                val score     = extractLong(args, "score")
+                val nextScore = extractLong(args, "next_score")
+                val premium   = args.contains("\"hasDoubleCrystal\":true")
+                userModel.setFromServer(username, rank, crystals, score, nextScore, premium)
+                pendingUsername = username
                 if (state == State.AUTHENTICATED) {
-                    val username = pendingUsername ?: "Player"
-                    pendingUsername = null
                     onLoginSuccess?.invoke(username)
                 }
                 onCommand?.invoke(category, name, args)
             }
 
-            else -> {
-                logger.debug("  (unhandled) category=$category name=$name")
-                // Parse battle list
-                if (name == "initbattleselect" && category == "lobby") {
-                    val battles = parseBattleList(args)
-                    onBattleList?.invoke(battles)
-                }
+            // News — parse and save to UserModel, then fire onLoginSuccess if needed
+            (name == "shownews" || name == "show_news") && category == "lobby" -> {
+                parseAndSaveNews(args)
                 onCommand?.invoke(category, name, args)
             }
+
+            name == "initbattleselect" && category == "lobby" -> {
+                onBattleList?.invoke(parseBattleList(args))
+                onCommand?.invoke(category, name, args)
+            }
+
+            else -> onCommand?.invoke(category, name, args)
+        }
+    }
+
+    // ── News ──────────────────────────────────────────────────────────────────
+
+    private fun parseAndSaveNews(args: String) {
+        try {
+            val username = pendingUsername ?: userModel.getCurrentUser()?.username ?: "Player"
+            logger.info("parseAndSaveNews: username=$username args=${args.take(200)}")
+
+            // args = [{"id":"1","header":"...","text":"...","date":"...","image":"..."}]
+            // Find first { ... } block (the first news item)
+            val start = args.indexOf('{')
+            val end   = args.lastIndexOf('}')
+            if (start == -1 || end == -1 || end <= start) {
+                logger.warn("parseAndSaveNews: no JSON object found in args")
+                return
+            }
+            val obj = args.substring(start + 1, end)
+
+            val id     = extractString(obj, "id")     ?: return
+            val header = (extractString(obj, "header") ?: "").replace("%USERNAME%", username)
+            val text   = extractString(obj, "text")   ?: ""
+            val date   = extractString(obj, "date")   ?: ""
+            val image  = extractString(obj, "image")
+
+            newsModel.setNews(News(id, header, text, date, image))
+            logger.info("News saved: id=$id header=$header date=$date")
+        } catch (e: Exception) {
+            logger.warn("News parse error: ${e.message}")
         }
     }
 
     // ── Send ──────────────────────────────────────────────────────────────────
-
-    fun sendCommand(category: String, name: String, args: String = "") {
-        val raw = if (args.isEmpty()) "$category;$name" else "$category;$name;$args"
-        sendPacket(raw)
-    }
 
     private fun sendPacket(plain: String) {
         try {
@@ -302,35 +281,38 @@ class NetworkManager {
     private fun flushPendingLogin() {
         val (user, pass) = pendingLogin ?: return
         pendingLogin = null
-        // Server expects 4 separate args: captcha;rememberMe;login;password
+        pendingUsername = user
         sendPacket("auth;login;;false;$user;$pass")
         logger.info("Sent login for: $user")
     }
 
-    private fun extractString(json: String, key: String): String? =
-        Regex(""""$key"\s*:\s*"([^"]*)"""").find(json)?.groupValues?.get(1)
+    private fun extractString(json: String, key: String): String? {
+        // Matches "key":"value" where value may contain escaped chars like \" \n \t
+        val regex = Regex(""""$key"\s*:\s*"((?:[^"\\]|\\.)*)"""")
+        return regex.find(json)?.groupValues?.get(1)
+            ?.replace("\\n", "\n")
+            ?.replace("\\t", "\t")
+            ?.replace("\\\"", "\"")
+            ?.replace("\\\\", "\\")
+    }
+
+    private fun extractInt(json: String, key: String): Int =
+        Regex(""""$key"\s*:\s*(\d+)""").find(json)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+
+    private fun extractLong(json: String, key: String): Long =
+        Regex(""""$key"\s*:\s*(\d+)""").find(json)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
 
     private fun parseBattleList(json: String): List<BattleInfo> {
         val result = mutableListOf<BattleInfo>()
-        // Simple regex-based extraction of each battle object
         val battleRegex = Regex("""\{[^{}]*"battleId"\s*:\s*"([^"]+)"[^{}]*\}""")
         for (match in battleRegex.findAll(json)) {
             val obj = match.value
             fun str(k: String) = Regex(""""$k"\s*:\s*"([^"]*)"""").find(obj)?.groupValues?.get(1) ?: ""
             fun int(k: String) = Regex(""""$k"\s*:\s*(\d+)""").find(obj)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-            // count users array elements
             val usersCount = Regex(""""users"\s*:\s*\[([^\]]*)\]""").find(obj)
                 ?.groupValues?.get(1)?.split(",")?.count { it.contains('"') } ?: 0
-            result += BattleInfo(
-                battleId   = str("battleId"),
-                name       = str("name"),
-                map        = str("map"),
-                mode       = str("battleMode"),
-                users      = usersCount,
-                maxPeople  = int("maxPeople"),
-                minRank    = int("minRank"),
-                maxRank    = int("maxRank")
-            )
+            result += BattleInfo(str("battleId"), str("name"), str("map"), str("battleMode"),
+                usersCount, int("maxPeople"), int("minRank"), int("maxRank"))
         }
         return result
     }

@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer
 import com.badlogic.gdx.math.Matrix4
 import com.tanki.client.gui.UIManager
 import com.tanki.client.network.NetworkManager
+import com.tanki.client.utils.FontGenerator
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import org.slf4j.LoggerFactory
@@ -35,8 +36,24 @@ class GameEngine : ApplicationAdapter(), KoinComponent {
         batch = SpriteBatch()
         shapeRenderer = ShapeRenderer()
         updateMatrix()
+        FontGenerator.init()
         networkManager.initialize()
         uiManager.initialize()
+
+        // Иконка окна через AWT (после инициализации LWJGL)
+        try {
+            val iconUrl = Thread.currentThread().contextClassLoader
+                .getResource("init-tank-logo.png")
+            if (iconUrl != null) {
+                val img = javax.imageio.ImageIO.read(iconUrl)
+                java.awt.Window.getWindows().forEach { w ->
+                    (w as? java.awt.Frame)?.setIconImage(img)
+                }
+                try { java.awt.Taskbar.getTaskbar().setIconImage(img) } catch (_: Exception) {}
+            }
+        } catch (e: Exception) {
+            logger.warn("Icon: ${e.message}")
+        }
     }
 
     override fun render() {
@@ -48,9 +65,6 @@ class GameEngine : ApplicationAdapter(), KoinComponent {
             logger.info("Окно изменено до ${Gdx.graphics.width}x${Gdx.graphics.height}")
         }
         
-        // Выводим в консоль напрямую
-        println("=== GAME ENGINE RENDER ===")
-        
         Gdx.gl.glClearColor(0f, 0f, 0f, 1f)
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT)
         Gdx.gl.glEnable(GL20.GL_BLEND)
@@ -60,10 +74,6 @@ class GameEngine : ApplicationAdapter(), KoinComponent {
         shapeRenderer.projectionMatrix = projMatrix
 
         networkManager.update()
-        
-        // Add very visible log
-        val currentScreen = uiManager.getCurrentScreen()
-        println("=== GAME ENGINE RENDER - Current screen: $currentScreen ===")
         
         uiManager.render(batch, shapeRenderer)
     }
@@ -83,6 +93,7 @@ class GameEngine : ApplicationAdapter(), KoinComponent {
     override fun dispose() {
         batch.dispose()
         shapeRenderer.dispose()
+        FontGenerator.dispose()
         uiManager.dispose()
         networkManager.dispose()
         logger.info("GameEngine disposed")

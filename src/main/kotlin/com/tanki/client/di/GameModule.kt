@@ -7,6 +7,7 @@ import com.tanki.client.models.UserModel
 import com.tanki.client.models.ChatModel
 import com.tanki.client.models.GarageModel
 import com.tanki.client.models.BattleModel
+import com.tanki.client.models.NewsModel
 import com.tanki.client.auth.AuthService
 import org.koin.dsl.module
 
@@ -22,6 +23,7 @@ val gameModule = module {
     single { ChatModel() }
     single { GarageModel() }
     single { BattleModel() }
+    single { NewsModel() }
     
     // Services
     single { AuthService() }

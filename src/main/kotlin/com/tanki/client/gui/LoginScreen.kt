@@ -7,13 +7,8 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont
 import com.badlogic.gdx.graphics.g2d.GlyphLayout
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer
-import com.tanki.client.auth.AuthService
-import com.tanki.client.gui.UIManager
-import com.tanki.client.gui.ScreenType
-import com.tanki.client.models.UserModel
 import com.tanki.client.network.NetworkManager
 import com.tanki.client.utils.makeFont
-import com.tanki.client.utils.SimpleTextRenderer
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import org.slf4j.LoggerFactory
@@ -41,7 +36,6 @@ class LoginScreen : UIScreen(), KoinComponent {
     private var isLoggingIn  = false
 
     private var playButton:     Button? = null
-    private var guestButton:    Button? = null
     private var registerButton: Button? = null
 
     private var panelX = 0f
@@ -78,7 +72,6 @@ class LoginScreen : UIScreen(), KoinComponent {
             }
             if (!isLoggingIn) {
                 playButton?.checkClick(mx, my)
-                guestButton?.checkClick(mx, my)
                 registerButton?.checkClick(mx, my)
             }
             return true
@@ -116,14 +109,14 @@ class LoginScreen : UIScreen(), KoinComponent {
         loginField    = TextField(fx, cy,       fw, 42f, "Логин")
         passwordField = TextField(fx, cy - 80f, fw, 42f, "Пароль", isPassword = true)
         val bw = fw; val bh = 48f
-        playButton     = Button(fx,              cy - 160f, bw,         bh, "ИГРАТЬ",      { attemptLogin() }, style = ButtonStyle.GREEN)
-        guestButton    = Button(fx,              cy - 220f, bw * 0.47f, bh, "ГОСТЬ",       { guestLogin() })
-        registerButton = Button(fx + bw * 0.53f, cy - 220f, bw * 0.47f, bh, "РЕГИСТРАЦИЯ", { uiManager.showScreen(ScreenType.REGISTER) })
+        playButton     = Button(fx, cy - 160f, bw, bh, "ИГРАТЬ",      { attemptLogin() }, style = ButtonStyle.GREEN)
+        registerButton = Button(fx, cy - 220f, bw, bh, "РЕГИСТРАЦИЯ", { uiManager.showScreen(ScreenType.REGISTER) })
     }
 
     private fun setupNetworkCallbacks() {
         networkManager.onLoginSuccess = { username ->
             Gdx.app.postRunnable {
+                println("DEBUG: Login success for username: $username")
                 isLoggingIn = false
                 errorMessage = ""
                 uiManager.showScreen(ScreenType.MAIN_MENU)
@@ -131,22 +124,25 @@ class LoginScreen : UIScreen(), KoinComponent {
         }
         networkManager.onLoginFailed = { reason ->
             Gdx.app.postRunnable {
+                println("DEBUG: Login failed: $reason")
                 isLoggingIn = false
                 errorMessage = reason
             }
         }
         networkManager.onCommand = { category, name, args ->
+            println("DEBUG: Received command: $category.$name with args: $args")
             if (name == "initpanel" && category == "lobby") {
-                // Parse user data from server and store in UserModel
-                val uname    = extractJson(args, "name")    ?: login.trim()
-                val rank     = extractJson(args, "rang")?.toIntOrNull()     ?: 1
-                val crystals = extractJson(args, "crystall")?.toIntOrNull() ?: 0
-                val score    = extractJson(args, "score")?.toLongOrNull()   ?: 0L
-                val premium  = extractJson(args, "hasDoubleCrystal") == "true"
-                userModel.setFromServer(uname, rank, crystals, score, premium)
+                val uname     = extractJson(args, "name")       ?: login.trim()
+                val rank      = extractJson(args, "rang")?.toIntOrNull()      ?: 1
+                val crystals  = extractJson(args, "crystall")?.toIntOrNull()  ?: 0
+                val score     = extractJson(args, "score")?.toLongOrNull()    ?: 0L
+                val nextScore = extractJson(args, "next_score")?.toLongOrNull() ?: 1000L
+                val premium   = extractJson(args, "hasDoubleCrystal") == "true"
+                userModel.setFromServer(uname, rank, crystals, score, nextScore, premium)
             }
         }
     }
+
 
     private fun extractJson(json: String, key: String): String? =
         Regex(""""$key"\s*:\s*"?([^",}\]]+)"?""").find(json)?.groupValues?.get(1)?.trim()
@@ -175,25 +171,18 @@ class LoginScreen : UIScreen(), KoinComponent {
         sr.color = Color(0.15f, 0.12f, 0.2f, 1f)
         sr.rect(0f, Gdx.graphics.height - 80f, Gdx.graphics.width.toFloat(), 80f)
         sr.end()
-        
-        // Draw title using SimpleTextRenderer
         sr.begin(ShapeRenderer.ShapeType.Filled)
-        SimpleTextRenderer.drawText(sr, "TANKI", Gdx.graphics.width / 2f - 40f, Gdx.graphics.height - 30f, 12f, Color(0.95f, 0.55f, 0.0f, 1f))
-        SimpleTextRenderer.drawText(sr, "CLIENT", Gdx.graphics.width / 2f - 40f, Gdx.graphics.height - 50f, 8f, Color.WHITE)
-        
-        // Draw subtitle
-        SimpleTextRenderer.drawText(sr, "ВХОД", Gdx.graphics.width / 2f - 20f, Gdx.graphics.height - 70f, 6f, Color(0.7f, 0.7f, 0.7f, 1f))
         sr.color = TankiStyle.ORANGE_DARK;          sr.rect(panelX, 0f, panelW, 3f)
         sr.color = TankiStyle.SEPARATOR;            sr.rect(panelX + 20f, h - 82f, panelW - 40f, 1f)
         lf.drawBackground(sr); pf.drawBackground(sr)
-        playButton?.drawFill(sr); guestButton?.drawFill(sr); registerButton?.drawFill(sr)
+        playButton?.drawFill(sr); registerButton?.drawFill(sr)
         sr.end()
 
         // ── Pass 2: borders ───────────────────────────────────────────────────
         sr.begin(ShapeRenderer.ShapeType.Line)
         lf.drawBorder(sr, activeField == "login")
         pf.drawBorder(sr, activeField == "password")
-        playButton?.drawBorder(sr); guestButton?.drawBorder(sr); registerButton?.drawBorder(sr)
+        playButton?.drawBorder(sr); registerButton?.drawBorder(sr)
         sr.end()
 
         // ── Pass 3: text ──────────────────────────────────────────────────────
@@ -210,7 +199,6 @@ class LoginScreen : UIScreen(), KoinComponent {
         lf.drawText(batch, iFont, login)
         pf.drawText(batch, iFont, password)
         playButton?.drawText(batch, bFont)
-        guestButton?.drawText(batch, bFont)
         registerButton?.drawText(batch, bFont)
         val msg = when {
             isLoggingIn               -> "Подключение..."
@@ -231,38 +219,14 @@ class LoginScreen : UIScreen(), KoinComponent {
         if (l.isEmpty() || p.isEmpty()) { errorMessage = "Введите логин и пароль"; return }
         isLoggingIn = true; errorMessage = ""
         
-        // Try to login with UserModel
-        val success = userModel.login(l, p)
-        if (success) {
-            logger.info("Login successful, going to main menu")
-            uiManager.showScreen(ScreenType.MAIN_MENU)
-        } else {
-            errorMessage = "Неверный логин или пароль"
-            isLoggingIn = false
-        }
+        // Подключаемся к серверу и пытаемся войти
+        logger.info("Попытка подключения к серверу с логином: $l")
+        networkManager.login(l, p)
     }
 
-    private fun guestLogin() {
-        // Create a guest user with random tank
-        logger.info("Attempting guest login...")
-        val success = userModel.login("Guest${(1000..9999).random()}", "guest")
-        logger.info("Guest login result: $success")
-        
-        if (success) {
-            val user = userModel.getCurrentUser()
-            val tank = userModel.getCurrentTank()
-            logger.info("Guest user created - User: ${user?.username}, Tank: ${tank?.name}")
-            uiManager.showScreen(ScreenType.MAIN_MENU)
-        } else {
-            logger.error("Failed to create guest user")
-        }
-    }
+    private fun guestLogin() = uiManager.showScreen(ScreenType.MAIN_MENU)
 
     override fun dispose() {
-        logoFont?.dispose()
-        labelFont?.dispose()
-        inputFont?.dispose()
-        smallFont?.dispose()
-        buttonFont?.dispose()
+        // Шрифты управляются FontGenerator — не освобождаем здесь
     }
 }
