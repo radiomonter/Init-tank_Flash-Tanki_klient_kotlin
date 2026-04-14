@@ -1,0 +1,39 @@
+package alternativa.tanks.model.item.properties
+{
+   import alternativa.tanks.model.item.upgradable.UpgradableItemPropertyValue;
+   import projects.tanks.client.garage.models.item.properties.ItemGarageProperty;
+   import projects.tanks.client.garage.models.item.properties.ItemGaragePropertyData;
+   
+   public class ItemGaragePropertyValue implements ItemPropertyValue
+   {
+      
+      private var garageProperty:ItemGaragePropertyData;
+      
+      public function ItemGaragePropertyValue(_arg_1:ItemGaragePropertyData)
+      {
+         super();
+         this.garageProperty = _arg_1;
+      }
+      
+      public function getValue() : String
+      {
+         return this.garageProperty.value;
+      }
+      
+      public function getProperty() : ItemGarageProperty
+      {
+         return this.garageProperty.property;
+      }
+      
+      public function isUpgradable() : Boolean
+      {
+         return false;
+      }
+      
+      public function getUpgradableValue() : UpgradableItemPropertyValue
+      {
+         return null;
+      }
+   }
+}
+

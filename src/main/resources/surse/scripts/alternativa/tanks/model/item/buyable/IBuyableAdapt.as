@@ -1,0 +1,66 @@
+package alternativa.tanks.model.item.buyable
+{
+   import platform.client.fp10.core.model.impl.Model;
+   import platform.client.fp10.core.type.IGameObject;
+   
+   public class IBuyableAdapt implements IBuyable
+   {
+      
+      private var object:IGameObject;
+      
+      private var impl:IBuyable;
+      
+      public function IBuyableAdapt(_arg_1:IGameObject, _arg_2:IBuyable)
+      {
+         super();
+         this.object = _arg_1;
+         this.impl = _arg_2;
+      }
+      
+      public function getPriceWithoutDiscount() : int
+      {
+         var result:int = 0;
+         try
+         {
+            Model.object = this.object;
+            result = this.impl.getPriceWithoutDiscount();
+         }
+         finally
+         {
+            Model.popObject();
+         }
+         return result;
+      }
+      
+      public function getPrice() : int
+      {
+         var result:int = 0;
+         try
+         {
+            Model.object = this.object;
+            result = this.impl.getPrice();
+         }
+         finally
+         {
+            Model.popObject();
+         }
+         return result;
+      }
+      
+      public function isBuyable() : Boolean
+      {
+         var result:Boolean = false;
+         try
+         {
+            Model.object = this.object;
+            result = this.impl.isBuyable();
+         }
+         finally
+         {
+            Model.popObject();
+         }
+         return result;
+      }
+   }
+}
+

@@ -8,6 +8,9 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer
 import com.tanki.client.models.UserModel
 import com.tanki.client.models.NewsModel
+import com.tanki.client.utils.NineSlice
+import com.tanki.client.utils.RankTextures
+import com.tanki.client.utils.UITextures
 import com.tanki.client.utils.makeFont
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -32,17 +35,28 @@ class MainMenuScreen : UIScreen(), KoinComponent {
     private val NAV_H   = 44f
     private val TAB_PAD = 28f
 
+    private val RANK_NAMES = listOf(
+        "Новобранец","Рядовой","Ефрейтор","Капрал","Мастер-капрал",
+        "Сержант","Штаб-сержант","Мастер-сержант","Первый сержант","Сержант-майор",
+        "Уорент-офицер 1","Уорент-офицер 2","Уорент-офицер 3","Уорент-офицер 4","Уорент-офицер 5",
+        "Младший лейтенант","Лейтенант","Старший лейтенант","Капитан","Майор",
+        "Подполковник","Полковник","Бригадир","Генерал-майор","Генерал-лейтенант",
+        "Генерал","Маршал","Фельдмаршал","Командор","Генералиссимус","Легенда"
+    )
+
     private fun ensureUI() {
         if (uiBuilt) return; uiBuilt = true
-        navFont   = makeFont(15)
-        infoFont  = makeFont(14)
-        newsFont  = makeFont(14)
-        logoTex   = com.badlogic.gdx.graphics.Texture(
-            com.badlogic.gdx.Gdx.files.internal("init-tank-logo.png")
-        ).also { it.setFilter(
-            com.badlogic.gdx.graphics.Texture.TextureFilter.Linear,
-            com.badlogic.gdx.graphics.Texture.TextureFilter.Linear
-        ) }
+        navFont  = makeFont(15)
+        infoFont = makeFont(14)
+        newsFont = makeFont(14)
+        try {
+            logoTex = com.badlogic.gdx.graphics.Texture(
+                Gdx.files.internal("init-tank-logo.png")
+            ).also { it.setFilter(
+                com.badlogic.gdx.graphics.Texture.TextureFilter.Linear,
+                com.badlogic.gdx.graphics.Texture.TextureFilter.Linear
+            ) }
+        } catch (_: Exception) {}
         tabs = listOf(
             NavTab("ГАРАЖ", { uiManager.showScreen(ScreenType.GARAGE) }),
             NavTab("В БОЙ", { uiManager.showScreen(ScreenType.LOBBY)  })
@@ -56,15 +70,17 @@ class MainMenuScreen : UIScreen(), KoinComponent {
         if (!isScreenVisible()) return
         ensureUI()
 
-        val w   = Gdx.graphics.width.toFloat()
-        val h   = Gdx.graphics.height.toFloat()
-        val nf  = navFont!!
-        val inf = infoFont!!; val nwf = newsFont!!
+        val w    = Gdx.graphics.width.toFloat()
+        val h    = Gdx.graphics.height.toFloat()
+        val nf   = navFont!!; val inf = infoFont!!; val nwf = newsFont!!
         val navY = h - NAV_H
         val user = userModel.getCurrentUser()
         val news = newsModel.getLatest()
 
-        // ── Вычисляем вкладки (справа, перед кнопкой ВЫХОД) ─────────────────
+        // Обновляем позицию кнопки ВЫХОД каждый кадр
+        exitBtn?.let { it.y = navY + (NAV_H - it.height) / 2f; it.x = w - 90f }
+
+        // ── Вычисляем вкладки (справа перед ВЫХОД) ───────────────────────────
         val exitBtnW = 90f
         var tabX = w - exitBtnW - 10f
         tabs.asReversed().forEach { tab ->
@@ -74,17 +90,19 @@ class MainMenuScreen : UIScreen(), KoinComponent {
             tab.x = tabX
         }
 
-        // ── Панель игрока (размеры) ───────────────────────────────────────────
-        val panelW   = 260f
-        val panelX   = 10f  // от левого края
-        val py       = navY + 4f
-        val rankSize = NAV_H - 8f
-        val barX     = panelX + rankSize + 8f
-        val barW     = panelW - rankSize - 8f
-        val barH     = 6f
-        val barY     = py + 8f
-        val crystalX = barX + barW - 70f
-        val progress = if (user != null) {
+        // ── Размеры панели игрока ─────────────────────────────────────────────
+        val rankSize  = NAV_H - 8f
+        val panelX    = 10f
+        val barH      = NAV_H - 16f
+        val barY      = navY + (NAV_H - barH) / 2f
+        val barX      = panelX + rankSize + 8f
+        val crystalW  = 110f
+        val crystalGap = 8f
+        val firstTabX = tabs.minOfOrNull { it.x } ?: w
+        val barW      = firstTabX - barX - crystalW - crystalGap - 8f
+        val crystalX  = barX + barW + crystalGap
+        val crystalY  = barY
+        val progress  = if (user != null) {
             val total = user.experience + user.nextScore
             if (total > 0) (user.experience.toFloat() / total).coerceIn(0f, 1f) else 0f
         } else 0f
@@ -109,11 +127,7 @@ class MainMenuScreen : UIScreen(), KoinComponent {
 
         // ══ PASS 1: ShapeRenderer ═════════════════════════════════════════════
         sr.begin(ShapeRenderer.ShapeType.Filled)
-
-        // Фон
         sr.color = Color(0.05f, 0.07f, 0.10f, 1f); sr.rect(0f, 0f, w, h)
-
-        // Навбар
         sr.color = Color(0.08f, 0.10f, 0.14f, 1f); sr.rect(0f, navY, w, NAV_H)
         sr.color = TankiStyle.ORANGE;               sr.rect(0f, navY - 2f, w, 2f)
         tabs.forEach { tab ->
@@ -121,27 +135,34 @@ class MainMenuScreen : UIScreen(), KoinComponent {
             sr.color = Color(0.20f, 0.24f, 0.30f, 1f); sr.rect(tab.x + tab.w - 1f, navY, 1f, NAV_H)
         }
         exitBtn?.drawFill(sr)
-
-        // Панель игрока
+        // Металлическая рамка через ShapeRenderer (серая) + зелёный прогресс
         if (user != null) {
-            sr.color = Color(0f, 0f, 0f, 0.3f)
-            sr.rect(panelX + 2f, py + 2f, rankSize - 4f, rankSize - 4f)
-            sr.color = Color(0.15f, 0.18f, 0.22f, 1f); sr.rect(barX, barY, barW, barH)
-            sr.color = TankiStyle.ORANGE;               sr.rect(barX, barY, barW * progress, barH)
-            sr.color = Color(1f, 1f, 1f, 0.15f);       sr.rect(barX, barY + barH / 2f, barW * progress, barH / 2f)
-            // Кристалл (ромб)
-            val cx = crystalX + 5f; val cy = py + barH + 14f + 5f; val cr = 5f
-            sr.color = Color(0.2f, 0.6f, 1.0f, 1f)
-            sr.triangle(cx, cy + cr, cx - cr, cy, cx + cr, cy)
-            sr.triangle(cx, cy - cr, cx - cr, cy, cx + cr, cy)
-        }
+            val edgeW = 6f  // толщина металлической рамки
 
-        // Новость
+            // Серая металлическая рамка — прогресс-бар
+            sr.color = Color(0.55f, 0.55f, 0.55f, 1f)
+            sr.rect(barX - edgeW, barY - edgeW, barW + edgeW * 2, barH + edgeW * 2)
+            // Тёмно-зелёный внутренний фон (не чёрный)
+            sr.color = Color(0.0f, 0.15f, 0.0f, 1f)
+            sr.rect(barX, barY, barW, barH)
+
+            // Серая металлическая рамка — кристаллы
+            sr.color = Color(0.55f, 0.55f, 0.55f, 1f)
+            sr.rect(crystalX - edgeW, crystalY - edgeW, crystalW + edgeW * 2, barH + edgeW * 2)
+            sr.color = Color(0.0f, 0.15f, 0.0f, 1f)
+            sr.rect(crystalX, crystalY, crystalW, barH)
+
+            // Зелёный прогресс поверх тёмного фона
+            val fillW = (barW * progress).coerceAtLeast(0f)
+            if (fillW > 0f) {
+                sr.color = Color(18/255f, 252/255f, 0f, 0.35f)
+                sr.rect(barX, barY, fillW, barH)
+            }
+        }
         if (news != null) {
             sr.color = Color(0.08f, 0.10f, 0.14f, 1f); sr.rect(nx, newsBlockY, nw, newsBlockH)
             sr.color = TankiStyle.ORANGE;               sr.rect(nx, newsBlockY + newsBlockH - 2f, nw, 2f)
         }
-
         sr.end()
 
         sr.begin(ShapeRenderer.ShapeType.Line)
@@ -160,7 +181,7 @@ class MainMenuScreen : UIScreen(), KoinComponent {
         }
         exitBtn?.drawText(batch, nf)
 
-        // Логотип в центре экрана — полупрозрачный фон
+        // Логотип в центре — полупрозрачный
         logoTex?.let { tex ->
             val logoH = 200f
             val logoW = logoH * (tex.width.toFloat() / tex.height.toFloat())
@@ -169,28 +190,45 @@ class MainMenuScreen : UIScreen(), KoinComponent {
             batch.setColor(1f, 1f, 1f, 1f)
         }
 
-        // Панель игрока
+        // ── Панель игрока ─────────────────────────────────────────────────────
         if (user != null) {
-            // Иконка ранга — изображение
-            val rankTex = com.tanki.client.utils.RankTextures.get(user.rank, user.premium)
+            // Иконка ранга
+            val rankTex = RankTextures.get(user.rank, user.premium)
             if (rankTex != null) {
-                batch.draw(rankTex, panelX, py, rankSize, rankSize)
+                batch.draw(rankTex, panelX, navY + (NAV_H - rankSize) / 2f, rankSize, rankSize)
             } else {
-                // fallback — цветной квадрат с номером
                 inf.color = Color.WHITE
                 val rl = GlyphLayout(inf, "${user.rank}")
                 inf.draw(batch, "${user.rank}", panelX + (rankSize - rl.width) / 2f,
-                    py + (rankSize + rl.height) / 2f)
+                    navY + (NAV_H + rl.height) / 2f)
             }
-            inf.color = Color.WHITE
-            inf.draw(batch, user.username, barX, py + rankSize - 2f)
-            nwf.color = TankiStyle.TEXT_GRAY
-            nwf.draw(batch, "${user.experience} / ${user.experience + user.nextScore}", barX, barY - 2f)
-            inf.color = Color(0.85f, 0.92f, 1.0f, 1f)
-            inf.draw(batch, "${user.crystals}", crystalX + 14f, py + rankSize - 2f)
+
+            // Края рамки (без центра — он прозрачный через ShapeRenderer)
+            val fL = UITextures.frameLeft; val fR = UITextures.frameRight
+            val edgeW = if (fL != null) (barH + 12f) * fL.width.toFloat() / fL.height.toFloat() else 7f
+            fL?.let { batch.draw(it, barX - 6f, barY - 6f, edgeW, barH + 12f) }
+            fR?.let { batch.draw(it, barX + barW + 6f - edgeW, barY - 6f, edgeW, barH + 12f) }
+
+            // Текст на баре
+            val rankName = RANK_NAMES.getOrElse(user.rank - 1) { "Ранг ${user.rank}" }
+            nwf.color = Color(0.4f, 1.0f, 0.4f, 1f)
+            nwf.draw(batch, "${user.experience} / ${user.experience + user.nextScore}  $rankName  ${user.username}",
+                barX + 6f, barY + barH - 6f)
+
+            // Кристаллы: края рамки
+            fL?.let { batch.draw(it, crystalX - 6f, crystalY - 6f, edgeW, barH + 12f) }
+            fR?.let { batch.draw(it, crystalX + crystalW + 6f - edgeW, crystalY - 6f, edgeW, barH + 12f) }
+            val crystalStr = "%,d".format(user.crystals).replace(",", " ")
+            inf.color = Color(0.4f, 1.0f, 0.4f, 1f)
+            inf.draw(batch, crystalStr, crystalX + 6f, crystalY + barH - 6f)
+            val cTex = UITextures.crystalSmall ?: UITextures.crystalBig
+            if (cTex != null) {
+                val iconSize = barH - 10f
+                batch.draw(cTex, crystalX + crystalW - iconSize - 5f, crystalY + 5f, iconSize, iconSize)
+            }
         }
 
-        // Новость
+        // ── Новость ───────────────────────────────────────────────────────────
         if (news != null) {
             nwf.color = TankiStyle.ORANGE
             nwf.draw(batch, "${news.header}  —  ${news.date}", nx + 10f, newsBlockY + newsBlockH - 8f)
@@ -213,18 +251,9 @@ class MainMenuScreen : UIScreen(), KoinComponent {
         }
     }
 
-    private fun rankColor(rank: Int): Color = when (rank) {
-        in 1..3   -> Color(0.30f, 0.55f, 0.30f, 1f)
-        in 4..7   -> Color(0.25f, 0.45f, 0.75f, 1f)
-        in 8..12  -> Color(0.65f, 0.45f, 0.10f, 1f)
-        in 13..17 -> Color(0.55f, 0.55f, 0.60f, 1f)
-        in 18..22 -> Color(0.75f, 0.60f, 0.15f, 1f)
-        else      -> Color(0.80f, 0.30f, 0.30f, 1f)
-    }
-
     override fun dispose() {
-        // Шрифты управляются FontGenerator
         logoTex?.dispose()
-        com.tanki.client.utils.RankTextures.dispose()
+        RankTextures.dispose()
+        UITextures.dispose()
     }
 }
